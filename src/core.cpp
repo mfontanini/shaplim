@@ -185,7 +185,7 @@ Json::Value core::show_playlist(const params_type& params)
 {
 	auto songs = m_playlist.songs();
 	Json::Value output(Json::objectValue);
-	output["list"] = Json::Value(Json::arrayValue);
+	output["songs"] = Json::Value(Json::arrayValue);
 	for(const auto& item : songs) {
 		const auto& path = item.path();
 		auto index = path.rfind('/');
