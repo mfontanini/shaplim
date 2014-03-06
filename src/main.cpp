@@ -20,7 +20,12 @@
 	#include <signal.h>
 #endif
 #include <thread>
+#include <vector>
+#include <fstream>
+#include <string>
 #include <functional>
+#include <iterator>
+#include <jsoncpp/json/reader.h>
 #include "types.h"
 #include "mp3_decoder.h"
 #include "song_stream.h"
@@ -43,9 +48,48 @@ void init_audio()
     #endif
 }
 
+bool read_configuration(const std::string& file_path, std::vector<std::string>& dirs) 
+{
+    Json::Value root;
+    Json::Reader reader;
+    std::ifstream input(file_path);
+    std::string data{std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>()};
+    if(!reader.parse(data, root))
+        return false;
+    if(!root.isMember("shared_directories")) {
+        throw std::runtime_error("Configuration file missing 'shared_directories' key");
+    }
+    for(const auto& dir : root["shared_directories"]) {
+        dirs.push_back(dir.asString());
+    }
+    return true;
+}
+
+std::vector<std::string> load_shared_dirs() 
+{
+    std::vector<std::string> dirs;
+    std::vector<std::string> config_files = {
+        "shaplim.conf",
+        "shaplim.conf.default"
+    };
+    for(const auto& config_file : config_files) {
+        if(read_configuration(config_file, dirs))
+            return dirs;
+    }
+    throw std::runtime_error("Configuration file not found");
+}
+
 int main() 
 {
-	init_audio();
-	core c;
-	c.run();
+    try {
+        std::vector<std::string> shared_dirs;
+        shared_dirs = load_shared_dirs();
+    	init_audio();
+    	core c(shared_dirs);
+    	c.run();
+    }
+    catch(std::runtime_error& ex) {
+        std::cout << "[-] Error: " << ex.what() << std::endl;
+    }
 }

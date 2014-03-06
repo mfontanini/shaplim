@@ -45,9 +45,9 @@ public:
 	}
 };
 
-core::core()
+core::core(const shared_dirs_list& shared_dirs)
 : m_server(m_io_service, 1337), m_playback(m_buffer), 
-m_sharing_manager({ "/tmp", "/media/Datos/Music" }),
+m_sharing_manager(shared_dirs),
 m_next_action(playlist_actions::next)
 {
 	m_decoder.on_sample_rate_change(

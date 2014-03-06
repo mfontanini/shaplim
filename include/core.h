@@ -34,7 +34,9 @@
 
 class core {
 public:
-	core();
+	using shared_dirs_list = std::vector<std::string>;
+
+	core(const shared_dirs_list& shared_dirs = shared_dirs_list());
 
 	void run();
 private:
