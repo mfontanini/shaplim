@@ -33,6 +33,9 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "clear_playlist", std::mem_fn(&core::clear_playlist) },
 	{ "pause", std::mem_fn(&core::pause) },
 	{ "play", std::mem_fn(&core::play) },
+	{ "list_shared_dirs", std::mem_fn(&core::list_shared_dirs) },
+	{ "list_directory", std::mem_fn(&core::list_directory) },
+	{ "add_shared_songs", std::mem_fn(&core::add_shared_songs) },
 };
 
 class fatal_exception : public std::exception {
@@ -42,17 +45,9 @@ public:
 	}
 };
 
-auto core::convert(const Json::Value& value) -> params_type
-{
-	params_type output;
-	for(auto&& item : value) {
-		output.push_back(item.asString());
-	}
-	return output;
-}
-
 core::core()
 : m_server(m_io_service, 1337), m_playback(m_buffer), 
+m_sharing_manager({ "/tmp", "/media/Datos/Music" }),
 m_next_action(playlist_actions::next)
 {
 	m_decoder.on_sample_rate_change(
@@ -116,13 +111,10 @@ Json::Value core::callback(session& sess, std::string data)
 			throw fatal_exception();
 		else {
 			std::string type = root["type"].asString();
-			params_type params;
-			if(root.isMember("params"))
-				params = convert(root["params"]);
 			auto iter = m_commands.find(type);
 			if(iter == m_commands.end())
 				throw std::runtime_error("Invalid command type");
-			result = iter->second(this, params);
+			result = iter->second(this, root["params"]);
 		}
 	}
 	catch(fatal_exception& ex) {
@@ -153,15 +145,15 @@ Json::Value core::json_error(std::string error_msg) const
 
 // Commands
 
-Json::Value core::add_songs(const params_type& params) 
+Json::Value core::add_songs(const Json::Value& params) 
 {
 	for(const auto& song : params) {
-		m_playlist.add_song(song);
+		m_playlist.add_song(song.asString());
 	}
 	return json_success();
 }
 
-Json::Value core::next_song(const params_type&) 
+Json::Value core::next_song(const Json::Value&) 
 {
 	{
 		locker_type _(m_action_lock);
@@ -171,7 +163,7 @@ Json::Value core::next_song(const params_type&)
 	return json_success();
 }
 
-Json::Value core::previous_song(const params_type&)
+Json::Value core::previous_song(const Json::Value&)
 {
 	{
 		locker_type _(m_action_lock);
@@ -181,7 +173,7 @@ Json::Value core::previous_song(const params_type&)
 	return json_success();
 }
 
-Json::Value core::show_playlist(const params_type& params)
+Json::Value core::show_playlist(const Json::Value& params)
 {
 	auto songs = m_playlist.songs();
 	Json::Value output(Json::objectValue);
@@ -196,7 +188,7 @@ Json::Value core::show_playlist(const params_type& params)
 	return output;
 }
 
-Json::Value core::playlist_mode(const params_type&)
+Json::Value core::playlist_mode(const Json::Value&)
 {
 	auto mode = m_playlist.playlist_mode();
 	Json::Value output(Json::objectValue);
@@ -208,20 +200,19 @@ Json::Value core::playlist_mode(const params_type&)
 	return output;
 }
 
-Json::Value core::set_playlist_mode(const params_type& params)
+Json::Value core::set_playlist_mode(const Json::Value& params)
 {
-	if(params.size() != 1)
-		return json_error("Expected one parameter");
-	if(params.front() == "shuffle")
+	auto param = params.asString();
+	if(params == "shuffle")
 		m_playlist.playlist_mode(playlist::mode::random_order);
-	else if(params.front() != "default")
+	else if(params != "default")
 		m_playlist.playlist_mode(playlist::mode::default_order);
 	else
-		return json_error("Valid modes are \"shuffle\" and \"default\"");
+		return json_error("Valid modes are 'shuffle' and 'default'");
 	return json_success();
 }
 
-Json::Value core::clear_playlist(const params_type&)
+Json::Value core::clear_playlist(const Json::Value&)
 {
 	{
 		locker_type _(m_action_lock);
@@ -232,14 +223,54 @@ Json::Value core::clear_playlist(const params_type&)
 	return json_success();
 }
 
-Json::Value core::pause(const params_type&)
+Json::Value core::pause(const Json::Value&)
 {
 	m_playback.pause();
 	return json_success();
 }
 
-Json::Value core::play(const params_type&)
+Json::Value core::play(const Json::Value&)
 {
 	m_playback.play();
+	return json_success();
+}
+
+Json::Value core::list_shared_dirs(const Json::Value&)
+{
+	auto dirs = m_sharing_manager.shared_directories();
+	Json::Value output(Json::objectValue);
+	output["directories"] = Json::Value(Json::arrayValue);
+	for(const auto& dir : dirs)
+		output["directories"].append(dir);
+	output["result"] = true;
+	return output;
+}
+
+Json::Value core::list_directory(const Json::Value& params)
+{
+	auto param = params.asString();
+	auto& root_dir = m_sharing_manager.find_directory(param);
+	Json::Value output(Json::objectValue);
+	output["directories"] = Json::Value(Json::arrayValue);
+	output["files"] = Json::Value(Json::arrayValue);
+	for(const auto& dir : root_dir.directories()) {
+		output["directories"].append(dir.name().string());
+	}
+	for(const auto& file : root_dir.files())
+		output["directories"].append(file.name());
+	output["result"] = true;
+	return output;
+}
+
+Json::Value core::add_shared_songs(const Json::Value& params)
+{
+	if(!params.isMember("base_path") || !params.isMember("songs"))
+		return json_error("Expected 'base_path' and 'songs' keys");
+	auto base_path = params["base_path"].asString();
+	auto& root_dir = m_sharing_manager.find_directory(base_path);
+	for(const auto& key : params["songs"]) {
+		auto song_path = root_dir.path_for_file(key.asString());
+		m_playlist.add_song(song_path);
+	}
 	return json_success();
 }
