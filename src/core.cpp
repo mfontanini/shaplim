@@ -249,7 +249,7 @@ Json::Value core::list_shared_dirs(const Json::Value&)
 Json::Value core::list_directory(const Json::Value& params)
 {
 	auto param = params.asString();
-	auto& root_dir = m_sharing_manager.find_directory(param);
+	const auto& root_dir = m_sharing_manager.find_directory(param);
 	Json::Value output(Json::objectValue);
 	output["directories"] = Json::Value(Json::arrayValue);
 	output["files"] = Json::Value(Json::arrayValue);
@@ -267,7 +267,7 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 	if(!params.isMember("base_path") || !params.isMember("songs"))
 		return json_error("Expected 'base_path' and 'songs' keys");
 	auto base_path = params["base_path"].asString();
-	auto& root_dir = m_sharing_manager.find_directory(base_path);
+	const auto& root_dir = m_sharing_manager.find_directory(base_path);
 	for(const auto& key : params["songs"]) {
 		auto song_path = root_dir.path_for_file(key.asString());
 		m_playlist.add_song(song_path);

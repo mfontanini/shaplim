@@ -35,14 +35,13 @@ public:
 
 	const path_type& name() const;
 	const path_type& path() const;
-	const directories_list& directories();
-	const files_list& files();
+	const directories_list& directories() const;
+	const files_list& files() const;
 
-	void load();
-	std::string path_for_file(const std::string& file_name);
-	directory& find_directory(const std::string& full_path);
-	directory& find_directory(path_type::iterator start, 
-		path_type::iterator end);
+	void load() const;
+	std::string path_for_file(const std::string& file_name) const;
+	const directory& find_directory(path_type::iterator start, 
+		path_type::iterator end) const;
 private:
 	struct only_for_search{};
 
@@ -57,8 +56,8 @@ private:
 
 	path_type m_path;
 	boost::filesystem::path::iterator m_name;
-	directories_list m_directories;
-	files_list m_files;
+	mutable directories_list m_directories;
+	mutable files_list m_files;
 	mutable std::shared_ptr<std::mutex> m_mutex;
 	mutable bool m_loaded;
 };

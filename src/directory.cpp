@@ -46,19 +46,20 @@ auto directory::path() const -> const path_type&
 	return m_path;
 }
 
-auto directory::directories() -> const directories_list&
+auto directory::directories() const -> const directories_list&
 {
 	load();
 	return m_directories;
 }
 
-auto directory::files() -> const files_list&
+auto directory::files() const -> const files_list&
 {
+	load();
 	return m_files;
 }
 
-directory& directory::find_directory(path_type::iterator start, 
-	path_type::iterator end)
+const directory& directory::find_directory(path_type::iterator start, 
+	path_type::iterator end) const
 {
 	if(start == end)
 		return *this;
@@ -77,13 +78,7 @@ directory& directory::find_directory(path_type::iterator start,
 	}
 }
 
-directory& directory::find_directory(const std::string& full_path)
-{
-	path_type path_obj = full_path;
-	return find_directory(path_obj.begin(), path_obj.end());
-}
-
-void directory::load()
+void directory::load() const
 {
 	lock_guard _(*m_mutex);
 	if(m_loaded)
@@ -108,7 +103,7 @@ void directory::add_directory(directory dir)
 	m_directories.push_back(std::move(dir));
 }
 
-std::string directory::path_for_file(const std::string& file_name)
+std::string directory::path_for_file(const std::string& file_name) const
 {
 	return (m_path / file_name).string();
 }

@@ -31,7 +31,7 @@ std::vector<std::string> sharing_manager::shared_directories()
 	return output;
 }
 
-directory& sharing_manager::find_directory(const std::string& full_path)
+const directory& sharing_manager::find_directory(const std::string& full_path) const
 {
 	directory::path_type dir_path(full_path);
 	return m_virtual_root.find_directory(dir_path.begin(), dir_path.end());

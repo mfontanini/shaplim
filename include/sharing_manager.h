@@ -27,7 +27,7 @@ public:
 	sharing_manager(const std::vector<std::string>& shared_dirs);
 
 	std::vector<std::string> shared_directories();
-	directory& find_directory(const std::string& full_path);
+	const directory& find_directory(const std::string& full_path) const;
 private:
 	directory m_virtual_root;
 };
