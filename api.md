@@ -23,7 +23,8 @@ clients can only play music that is stored inside one of them.
 ```javascript
 { 
     "type" : "list_shared_dirs" 
-}```
+}
+```
 * Output: 
 ```javascript
 { 
@@ -44,7 +45,8 @@ its subdirectories.
 { 
     "type" : "list_directory", 
     "params" : "dir1" 
-}```
+}
+```
 * Output: 
 ```javascript
 { 
@@ -94,7 +96,8 @@ key which holds a string and a `songs` key which holds a `[string]`.
 ```javascript
 { 
     "result" : bool 
-}```
+}
+```
 
 
 ## Play
