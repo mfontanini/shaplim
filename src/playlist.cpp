@@ -32,7 +32,7 @@ void playlist::add_song(song a_song)
 	locker_type _(m_lock);
 	m_songs.push_back(std::move(a_song));
 	m_songs_order.push_back(m_songs.size() - 1);
-	if(m_order == mode::random_order && m_songs.size() > 1) {
+	if(m_order == mode::random_order && m_songs.size() - m_current_index > 2) {
 		std::uniform_int_distribution<> dis(m_current_index + 1, m_songs_order.size() - 2);
 		std::swap(m_songs_order.back(), m_songs_order[dis(m_generator)]);
 	}
