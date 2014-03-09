@@ -31,6 +31,7 @@
 #include "decoder.h"
 #include "playback_manager.h"
 #include "sharing_manager.h"
+#include "event_manager.h"
 
 class core {
 public:
@@ -60,6 +61,7 @@ private:
 	Json::Value clear_playlist(const Json::Value&);
 	Json::Value pause(const Json::Value&);
 	Json::Value play(const Json::Value&);
+	Json::Value new_events(const Json::Value& params);
 	// Sharing commands
 	Json::Value list_shared_dirs(const Json::Value&);
 	Json::Value list_directory(const Json::Value& params);
@@ -78,6 +80,7 @@ private:
 	sharing_manager m_sharing_manager;
 	std::thread m_decode_thread;
 	playlist_actions m_next_action;
+	event_manager m_event_manager;
 	std::mutex m_action_lock;
 };
 

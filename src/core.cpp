@@ -36,6 +36,7 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "list_shared_dirs", std::mem_fn(&core::list_shared_dirs) },
 	{ "list_directory", std::mem_fn(&core::list_directory) },
 	{ "add_shared_songs", std::mem_fn(&core::add_shared_songs) },
+	{ "new_events", std::mem_fn(&core::new_events) },
 };
 
 class fatal_exception : public std::exception {
@@ -74,8 +75,10 @@ void core::decode_loop()
 	while(true) {
 		song_stream stream;
 		try {
-			song song_to_play = m_playlist.current();
+			auto song_tuple = m_playlist.current();
+			auto &song_to_play = std::get<0>(song_tuple);
 			std::cout << song_to_play.path() << std::endl;
+			m_event_manager.add_play_song_event(std::get<1>(song_tuple));
 			if(song_to_play.schema() == song::schema_type::file)
 				stream = make_file_song_stream(song_to_play.path());
 			else {
@@ -147,9 +150,13 @@ Json::Value core::json_error(std::string error_msg) const
 
 Json::Value core::add_songs(const Json::Value& params) 
 {
+	std::vector<std::string> songs;
 	for(const auto& song : params) {
-		m_playlist.add_song(song.asString());
+		auto name = song.asString();
+		m_playlist.add_song(name);
+		songs.push_back(std::move(name));
 	}
+	m_event_manager.add_songs_add_event(songs);
 	return json_success();
 }
 
@@ -175,6 +182,7 @@ Json::Value core::previous_song(const Json::Value&)
 
 Json::Value core::show_playlist(const Json::Value& params)
 {
+	auto now = event_manager::clock_type::now();
 	auto songs = m_playlist.songs();
 	Json::Value output(Json::objectValue);
 	output["songs"] = Json::Value(Json::arrayValue);
@@ -185,6 +193,9 @@ Json::Value core::show_playlist(const Json::Value& params)
 	}
 	output["current"] = static_cast<Json::Int>(m_playlist.current_index());
 	output["result"] = true;
+	output["timestamp"] = static_cast<Json::UInt64>(
+		now.time_since_epoch().count()
+	);
 	return output;
 }
 
@@ -257,7 +268,7 @@ Json::Value core::list_directory(const Json::Value& params)
 		output["directories"].append(dir.name().string());
 	}
 	for(const auto& file : root_dir.files())
-		output["directories"].append(file.name());
+		output["files"].append(file.name());
 	output["result"] = true;
 	return output;
 }
@@ -268,9 +279,30 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 		return json_error("Expected 'base_path' and 'songs' keys");
 	auto base_path = params["base_path"].asString();
 	const auto& root_dir = m_sharing_manager.find_directory(base_path);
+	std::vector<std::string> songs;
 	for(const auto& key : params["songs"]) {
 		auto song_path = root_dir.path_for_file(key.asString());
 		m_playlist.add_song(song_path);
+		songs.push_back(std::move(song_path));
 	}
+	m_event_manager.add_songs_add_event(songs);
 	return json_success();
+}
+
+Json::Value core::new_events(const Json::Value& params)
+{
+	const auto param = params.asUInt64();
+	const auto duration = event_manager::time_point::duration(param);
+	auto events_tuple = m_event_manager.get_new_events(
+		event_manager::time_point(duration)
+	);
+	Json::Value output(Json::objectValue);
+	output["events"] = Json::Value(Json::arrayValue);
+	for(const auto& event : std::get<0>(events_tuple))
+		output["events"].append(event);
+	output["result"] = true;
+	output["timestamp"] = static_cast<Json::UInt64>(
+		std::get<1>(events_tuple).time_since_epoch().count()
+	);
+	return output;
 }

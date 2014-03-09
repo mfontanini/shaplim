@@ -65,7 +65,7 @@ bool playlist::delete_song(size_t index, const std::string& name)
 void playlist::next() 
 {
 	locker_type _(m_lock);
-	m_current_index++;
+	m_current_index = std::min(m_current_index + 1, m_songs.size());
 }
 
 void playlist::prev() 
@@ -73,9 +73,10 @@ void playlist::prev()
 	locker_type _(m_lock);
 	if(m_current_index > 0)
 		m_current_index--;
+	m_cond.notify_one();
 }
 
-song playlist::current() const
+std::tuple<song, int> playlist::current() const
 {
 	locker_type locker(m_lock);
 	if(m_current_index >= m_songs.size()) {
@@ -83,7 +84,10 @@ song playlist::current() const
 		if(m_current_index >= m_songs.size())
 			throw std::runtime_error("No songs left");
 	}
-	return m_songs[m_songs_order[m_current_index]];
+	return std::make_tuple(
+		m_songs[m_songs_order[m_current_index]],
+		m_current_index
+	);
 }
 
 int playlist::current_index() const

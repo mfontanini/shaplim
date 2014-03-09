@@ -89,7 +89,7 @@ void directory::load() const
         	m_directories.emplace_back(iter->path());
      	}
      	// TODO: move the extension check to some object
-     	else if(is_regular_file(*iter) && extension(*iter) == "mp3") {
+     	else if(is_regular_file(*iter) && extension(*iter) == ".mp3") {
      		m_files.emplace_back(iter->path().filename().string());
      	}
    	}

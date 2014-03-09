@@ -15,45 +15,26 @@
  * MA 02110-1301, USA.
  */
 
-#ifndef SHAPLIM_PLAYLIST_H
-#define SHAPLIM_PLAYLIST_H
+#ifndef SHAPLIM_EVENT_MANAGER_H
+#define SHAPLIM_EVENT_MANAGER_H
 
-#include <vector>
+#include <chrono>
+#include <map>
 #include <mutex>
-#include <condition_variable>
-#include <random>
 #include <tuple>
-#include "song.h"
+#include <jsoncpp/json/value.h>
 
-class playlist {
+class event_manager {
 public:
-	enum class mode {
-		default_order,
-		random_order
-	};
+	using clock_type = std::chrono::steady_clock;
+	using time_point = clock_type::time_point;
 
-	playlist();
-
-	void add_song(song a_song);
-	bool delete_song(size_t index, const std::string& name);
-	std::vector<song> songs() const;
-
-	void next();
-	void prev();
-	std::tuple<song, int> current() const;
-	int current_index() const;
-	bool songs_left() const;
-	void clear();
-	mode playlist_mode() const;
-	void playlist_mode(mode order);
+	void add_songs_add_event(const std::vector<std::string>& songs);
+	void add_play_song_event(int index);
+	std::tuple<Json::Value, time_point> get_new_events(time_point start_point);
 private:
-	std::vector<song> m_songs;
-	std::vector<unsigned int> m_songs_order;
-	std::mt19937 m_generator;
-	size_t m_current_index;
-	mutable std::mutex m_lock;
-	mutable std::condition_variable m_cond;
-	mode m_order;
+	std::map<time_point, Json::Value> m_events;
+	std::mutex m_mutex;
 };
 
-#endif // SHAPLIM_PLAYLIST_H
+#endif // SHAPLIM_EVENT_MANAGER_H
