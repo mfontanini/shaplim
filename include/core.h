@@ -25,6 +25,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include "playlist.h"
 #include "server.h"
 #include "types.h"
@@ -71,6 +72,8 @@ private:
 	Json::Value json_success() const;
 	Json::Value json_error(std::string error_msg) const;
 
+	void execute_next_action();
+
 	boost::asio::io_service m_io_service;
 	server m_server;
 	playlist m_playlist;
@@ -81,7 +84,8 @@ private:
 	std::thread m_decode_thread;
 	playlist_actions m_next_action;
 	event_manager m_event_manager;
-	std::mutex m_action_lock;
+	std::mutex m_playlist_mutex;
+	std::condition_variable m_playlist_cond;
 };
 
 #endif // SHAPLIM_CORE_H

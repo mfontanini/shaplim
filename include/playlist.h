@@ -19,8 +19,6 @@
 #define SHAPLIM_PLAYLIST_H
 
 #include <vector>
-#include <mutex>
-#include <condition_variable>
 #include <random>
 #include <tuple>
 #include "song.h"
@@ -36,23 +34,24 @@ public:
 
 	void add_song(song a_song);
 	bool delete_song(size_t index, const std::string& name);
-	std::vector<song> songs() const;
+	const std::vector<song>& songs() const;
 
 	void next();
 	void prev();
-	std::tuple<song, int> current() const;
+	song current() const;
+	bool has_current() const;
 	int current_index() const;
 	bool songs_left() const;
 	void clear();
 	mode playlist_mode() const;
 	void playlist_mode(mode order);
+	size_t song_count() const;
+	bool empty() const;
 private:
 	std::vector<song> m_songs;
 	std::vector<unsigned int> m_songs_order;
 	std::mt19937 m_generator;
 	size_t m_current_index;
-	mutable std::mutex m_lock;
-	mutable std::condition_variable m_cond;
 	mode m_order;
 };
 

@@ -49,7 +49,7 @@ public:
 core::core(const shared_dirs_list& shared_dirs)
 : m_server(m_io_service, 1337), m_playback(m_buffer), 
 m_sharing_manager(shared_dirs),
-m_next_action(playlist_actions::next)
+m_next_action(playlist_actions::none)
 {
 	m_decoder.on_sample_rate_change(
 		std::bind(&playback_manager::set_sample_rate, &m_playback, std::placeholders::_1)
@@ -75,10 +75,22 @@ void core::decode_loop()
 	while(true) {
 		song_stream stream;
 		try {
-			auto song_tuple = m_playlist.current();
-			auto &song_to_play = std::get<0>(song_tuple);
+			song song_to_play;
+			int current_index;
+
+			{
+				std::unique_lock<std::mutex> lock(m_playlist_mutex);
+				execute_next_action();
+				while(!m_playlist.has_current()) {
+					m_playlist_cond.wait(lock);
+					execute_next_action();
+				}
+				song_to_play = m_playlist.current();
+				current_index = m_playlist.current_index();
+				m_next_action = playlist_actions::next;
+			}
 			std::cout << song_to_play.path() << std::endl;
-			m_event_manager.add_play_song_event(std::get<1>(song_tuple));
+			m_event_manager.add_play_song_event(current_index);
 			if(song_to_play.schema() == song::schema_type::file)
 				stream = make_file_song_stream(song_to_play.path());
 			else {
@@ -89,19 +101,22 @@ void core::decode_loop()
 		catch(std::exception& ex) {
 			std::cout << "Error: " << ex.what() << std::endl;
 		}
-		locker_type _(m_action_lock);
-		switch(m_next_action) {
-			case playlist_actions::next:
-				m_playlist.next();
-				break;
-			case playlist_actions::prev:
-				m_playlist.prev();
-				break;
-			default:
-				break;
-		}
-		m_next_action = playlist_actions::next;
 	}
+}
+
+void core::execute_next_action()
+{
+	switch(m_next_action) {
+		case playlist_actions::next:
+			m_playlist.next();
+			break;
+		case playlist_actions::prev:
+			m_playlist.prev();
+			break;
+		default:
+			break;
+	}
+	m_next_action = playlist_actions::none;
 }
 
 Json::Value core::callback(session& sess, std::string data)
@@ -151,10 +166,14 @@ Json::Value core::json_error(std::string error_msg) const
 Json::Value core::add_songs(const Json::Value& params) 
 {
 	std::vector<std::string> songs;
-	for(const auto& song : params) {
-		auto name = song.asString();
-		m_playlist.add_song(name);
-		songs.push_back(std::move(name));
+	{
+		locker_type _(m_playlist_mutex);
+		for(const auto& song : params) {
+			auto name = song.asString();
+			m_playlist.add_song(name);
+			songs.push_back(std::move(name));
+		}
+		m_playlist_cond.notify_one();
 	}
 	m_event_manager.add_songs_add_event(songs);
 	return json_success();
@@ -163,7 +182,7 @@ Json::Value core::add_songs(const Json::Value& params)
 Json::Value core::next_song(const Json::Value&) 
 {
 	{
-		locker_type _(m_action_lock);
+		locker_type _(m_playlist_mutex);
 		m_next_action = playlist_actions::next;
 		m_decoder.stop_decode();
 	}
@@ -173,9 +192,10 @@ Json::Value core::next_song(const Json::Value&)
 Json::Value core::previous_song(const Json::Value&)
 {
 	{
-		locker_type _(m_action_lock);
+		locker_type _(m_playlist_mutex);
 		m_next_action = playlist_actions::prev;
 		m_decoder.stop_decode();
+		m_playlist_cond.notify_one();
 	}
 	return json_success();
 }
@@ -183,15 +203,19 @@ Json::Value core::previous_song(const Json::Value&)
 Json::Value core::show_playlist(const Json::Value& params)
 {
 	auto now = event_manager::clock_type::now();
-	auto songs = m_playlist.songs();
 	Json::Value output(Json::objectValue);
-	output["songs"] = Json::Value(Json::arrayValue);
-	for(const auto& item : songs) {
-		const auto& path = item.path();
-		auto index = path.rfind('/');
-		output["songs"].append(path.substr(index + 1));
+	{
+		// Lock to retrieve songs
+		locker_type _(m_playlist_mutex);
+		const auto& songs = m_playlist.songs();
+		output["songs"] = Json::Value(Json::arrayValue);
+		for(const auto& item : songs) {
+			const auto& path = item.path();
+			auto index = path.rfind('/');
+			output["songs"].append(path.substr(index + 1));
+		}
+		output["current"] = static_cast<Json::Int>(m_playlist.current_index());
 	}
-	output["current"] = static_cast<Json::Int>(m_playlist.current_index());
 	output["result"] = true;
 	output["timestamp"] = static_cast<Json::UInt64>(
 		now.time_since_epoch().count()
@@ -201,7 +225,11 @@ Json::Value core::show_playlist(const Json::Value& params)
 
 Json::Value core::playlist_mode(const Json::Value&)
 {
-	auto mode = m_playlist.playlist_mode();
+	playlist::mode mode;
+	{
+		locker_type _(m_playlist_mutex);
+		mode = m_playlist.playlist_mode();
+	}
 	Json::Value output(Json::objectValue);
 	output["result"] = true;
 	if(mode == playlist::mode::random_order)
@@ -214,6 +242,7 @@ Json::Value core::playlist_mode(const Json::Value&)
 Json::Value core::set_playlist_mode(const Json::Value& params)
 {
 	auto param = params.asString();
+	locker_type _(m_playlist_mutex);
 	if(params == "shuffle")
 		m_playlist.playlist_mode(playlist::mode::random_order);
 	else if(params != "default")
@@ -226,11 +255,11 @@ Json::Value core::set_playlist_mode(const Json::Value& params)
 Json::Value core::clear_playlist(const Json::Value&)
 {
 	{
-		locker_type _(m_action_lock);
+		locker_type _(m_playlist_mutex);
 		m_next_action = playlist_actions::none;
 		m_decoder.stop_decode();
+		m_playlist.clear();
 	}
-	m_playlist.clear();
 	return json_success();
 }
 
@@ -280,10 +309,14 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 	auto base_path = params["base_path"].asString();
 	const auto& root_dir = m_sharing_manager.find_directory(base_path);
 	std::vector<std::string> songs;
-	for(const auto& key : params["songs"]) {
-		auto song_path = root_dir.path_for_file(key.asString());
-		m_playlist.add_song(song_path);
-		songs.push_back(std::move(song_path));
+	{
+		locker_type _(m_playlist_mutex);
+		for(const auto& key : params["songs"]) {
+			auto song_path = root_dir.path_for_file(key.asString());
+			m_playlist.add_song(song_path);
+			songs.push_back(std::move(song_path));
+		}
+		m_playlist_cond.notify_one();
 	}
 	m_event_manager.add_songs_add_event(songs);
 	return json_success();

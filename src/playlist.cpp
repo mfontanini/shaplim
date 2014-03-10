@@ -18,8 +18,6 @@
 #include <limits>
 #include "playlist.h"
 
-using locker_type = std::unique_lock<std::mutex>;
-
 playlist::playlist()
 : m_current_index(), m_order(mode::default_order)
 {
@@ -29,19 +27,16 @@ playlist::playlist()
 
 void playlist::add_song(song a_song)
 {
-	locker_type _(m_lock);
 	m_songs.push_back(std::move(a_song));
 	m_songs_order.push_back(m_songs.size() - 1);
 	if(m_order == mode::random_order && m_songs.size() - m_current_index > 2) {
 		std::uniform_int_distribution<> dis(m_current_index + 1, m_songs_order.size() - 2);
 		std::swap(m_songs_order.back(), m_songs_order[dis(m_generator)]);
 	}
-	m_cond.notify_one();
 }
 
 bool playlist::delete_song(size_t index, const std::string& name)
 {
-	locker_type _(m_lock);
 	if(index >= m_songs.size())
 		return false;
 	if(m_songs[index].path() != name)
@@ -64,36 +59,28 @@ bool playlist::delete_song(size_t index, const std::string& name)
 
 void playlist::next() 
 {
-	locker_type _(m_lock);
 	m_current_index = std::min(m_current_index + 1, m_songs.size());
 }
 
 void playlist::prev() 
 {
-	locker_type _(m_lock);
 	if(m_current_index > 0)
 		m_current_index--;
-	m_cond.notify_one();
 }
 
-std::tuple<song, int> playlist::current() const
+song playlist::current() const
 {
-	locker_type locker(m_lock);
-	if(m_current_index >= m_songs.size()) {
-		m_cond.wait(locker);
-		if(m_current_index >= m_songs.size())
-			throw std::runtime_error("No songs left");
-	}
-	return std::make_tuple(
-		m_songs[m_songs_order[m_current_index]],
-		m_current_index
-	);
+	return m_songs[m_songs_order[m_current_index]];
+}
+
+bool playlist::has_current() const
+{
+	return m_current_index != m_songs.size();
 }
 
 int playlist::current_index() const
 {
-	locker_type locker(m_lock);
-	if(m_current_index >= m_songs.size())
+	if(m_current_index == m_songs.size())
 		return -1;
 	else 
 		return m_songs_order[m_current_index];
@@ -101,33 +88,37 @@ int playlist::current_index() const
 
 void playlist::clear()
 {
-	locker_type locker(m_lock);
 	m_songs.clear();
 	m_songs_order.clear();
 	m_current_index = 0;
-	m_cond.notify_one();
 }
 
 bool playlist::songs_left() const 
 {
-	locker_type _(m_lock);
 	return m_current_index != m_songs.size();
 }
 
-std::vector<song> playlist::songs() const
+const std::vector<song>& playlist::songs() const
 {
-	locker_type _(m_lock);
 	return m_songs;
 }
 
 auto playlist::playlist_mode() const -> mode
 {
-	locker_type _(m_lock);
 	return m_order;
 }
 
 void playlist::playlist_mode(mode order)
 {
-	locker_type _(m_lock);
 	m_order = order;
+}
+
+size_t playlist::song_count() const
+{
+	return m_songs.size();
+}
+
+bool playlist::empty() const
+{
+	return m_songs.empty();
 }
