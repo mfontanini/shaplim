@@ -27,8 +27,9 @@ public:
 	playback_manager(types::decode_buffer_type &buffer);
 
 	void set_sample_rate(long rate);
-	void play();
-	void pause();
+	bool play();
+	bool pause();
+	bool is_stream_active() const;
 private:
 	using handle_type = std::unique_ptr<PaStream, decltype(&Pa_CloseStream)>;
 

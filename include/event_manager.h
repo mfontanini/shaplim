@@ -31,6 +31,8 @@ public:
 
 	void add_songs_add_event(const std::vector<std::string>& songs);
 	void add_play_song_event(int index);
+	void add_pause_event();
+	void add_play_event();
 	std::tuple<Json::Value, time_point> get_new_events(time_point start_point);
 private:
 	std::map<time_point, Json::Value> m_events;

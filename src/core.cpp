@@ -37,6 +37,7 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "list_directory", std::mem_fn(&core::list_directory) },
 	{ "add_shared_songs", std::mem_fn(&core::add_shared_songs) },
 	{ "new_events", std::mem_fn(&core::new_events) },
+	{ "player_status", std::mem_fn(&core::player_status) },
 };
 
 class fatal_exception : public std::exception {
@@ -265,14 +266,24 @@ Json::Value core::clear_playlist(const Json::Value&)
 
 Json::Value core::pause(const Json::Value&)
 {
-	m_playback.pause();
+	if(m_playback.pause())
+		m_event_manager.add_pause_event();
 	return json_success();
 }
 
 Json::Value core::play(const Json::Value&)
 {
-	m_playback.play();
+	if(m_playback.play())
+		m_event_manager.add_play_event();
 	return json_success();
+}
+
+Json::Value core::player_status(const Json::Value&)
+{
+	Json::Value output(Json::objectValue);
+	output["result"] = true;
+	output["status"] = m_playback.is_stream_active() ? "playing" : "paused";
+	return output;
 }
 
 Json::Value core::list_shared_dirs(const Json::Value&)

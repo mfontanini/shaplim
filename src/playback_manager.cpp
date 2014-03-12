@@ -42,7 +42,7 @@ void playback_manager::set_sample_rate(long rate)
 {
     if(rate != m_current_rate) {
         m_current_rate = rate;
-        if(Pa_IsStreamActive(m_handle.get())) {
+        if(is_stream_active()) {
             Pa_StopStream(m_handle.get());
         }
         PaStream *stream;
@@ -53,16 +53,27 @@ void playback_manager::set_sample_rate(long rate)
     }
 }
 
-void playback_manager::play()
+bool playback_manager::play()
 {
-	if(!Pa_IsStreamActive(m_handle.get())) 
+	if(!is_stream_active()) {
 		Pa_StartStream(m_handle.get());
+        return true;
+    }
+    return false;
 }
 
-void playback_manager::pause()
+bool playback_manager::pause()
 {
-	if(Pa_IsStreamActive(m_handle.get()))
+	if(is_stream_active()) {
         Pa_StopStream(m_handle.get());
+        return true;
+    }
+    return false;
+}
+
+bool playback_manager::is_stream_active() const
+{
+    return Pa_IsStreamActive(m_handle.get());
 }
 
 int playback_manager::callback(void *output_buffer, unsigned long frames_per_buffer)

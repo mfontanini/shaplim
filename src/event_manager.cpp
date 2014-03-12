@@ -58,3 +58,23 @@ auto event_manager::get_new_events(time_point start_point)
 	}
 	return std::make_tuple(std::move(output), now);
 }
+
+void event_manager::add_pause_event()
+{
+	locker_type _(m_mutex);
+	Json::Value event(Json::objectValue);
+	event["type"] = "pause";
+	m_events.insert(
+		std::make_pair(clock_type::now(), std::move(event))
+	);
+}
+
+void event_manager::add_play_event()
+{
+	locker_type _(m_mutex);
+	Json::Value event(Json::objectValue);
+	event["type"] = "play";
+	m_events.insert(
+		std::make_pair(clock_type::now(), std::move(event))
+	);
+}
