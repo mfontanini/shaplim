@@ -244,12 +244,13 @@ Json::Value core::set_playlist_mode(const Json::Value& params)
 {
 	auto param = params.asString();
 	locker_type _(m_playlist_mutex);
-	if(params == "shuffle")
+	if(param == "shuffle")
 		m_playlist.playlist_mode(playlist::mode::random_order);
-	else if(params != "default")
+	else if(param != "default")
 		m_playlist.playlist_mode(playlist::mode::default_order);
 	else
 		return json_error("Valid modes are 'shuffle' and 'default'");
+	m_event_manager.add_playlist_mode_changed_event(std::move(param));
 	return json_success();
 }
 
