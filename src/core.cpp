@@ -38,6 +38,8 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "add_shared_songs", std::mem_fn(&core::add_shared_songs) },
 	{ "new_events", std::mem_fn(&core::new_events) },
 	{ "player_status", std::mem_fn(&core::player_status) },
+	{ "delete_song", std::mem_fn(&core::delete_song) },
+	{ "set_current_song", std::mem_fn(&core::set_current_song) },
 };
 
 class fatal_exception : public std::exception {
@@ -160,6 +162,24 @@ Json::Value core::json_error(std::string error_msg) const
 	output["result"] = false;
 	output["message"] = std::move(error_msg);
 	return output;
+}
+
+event_manager::time_point core::time_point_from_json(const Json::Value& value)
+{
+	const auto param = value.asUInt64();
+	const auto duration = event_manager::time_point::duration(param);
+	return event_manager::time_point(duration);
+}
+
+bool core::is_index_still_valid(const time_point& timestamp, size_t index)
+{
+	auto erase_events = m_event_manager.find_new_events(timestamp, "delete_song");
+	for(const auto& event : erase_events) {
+		// TODO: create a class for events
+		if(event["index"].asUInt64() <= index)
+			return false;
+	}
+	return true;
 }
 
 // Commands
@@ -336,10 +356,8 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 
 Json::Value core::new_events(const Json::Value& params)
 {
-	const auto param = params.asUInt64();
-	const auto duration = event_manager::time_point::duration(param);
 	auto events_tuple = m_event_manager.get_new_events(
-		event_manager::time_point(duration)
+		time_point_from_json(params)
 	);
 	Json::Value output(Json::objectValue);
 	output["events"] = Json::Value(Json::arrayValue);
@@ -350,4 +368,42 @@ Json::Value core::new_events(const Json::Value& params)
 		std::get<1>(events_tuple).time_since_epoch().count()
 	);
 	return output;
+}
+
+Json::Value core::delete_song(const Json::Value& params)
+{
+	if(!params.isMember("timestamp") || !params.isMember("index"))
+		return json_error("Expected 'timestamp' and 'index' keys");
+	auto timestamp = time_point_from_json(params["timestamp"]);
+	locker_type _(m_playlist_mutex);
+	const auto index = params["index"].asUInt64();
+	if(!is_index_still_valid(timestamp, index))
+		return json_error("Index has been altered");
+	if(static_cast<int>(index) == m_playlist.current_index()) {
+		m_next_action = playlist_actions::none;
+		m_decoder.stop_decode();
+	}
+	if(m_playlist.delete_song(index))
+		return json_success();
+	else
+		return json_error("Failed to delete song");
+}
+
+Json::Value core::set_current_song(const Json::Value& params)
+{
+	if(!params.isMember("timestamp") || !params.isMember("index"))
+		return json_error("Expected 'timestamp' and 'index' keys");
+	auto timestamp = time_point_from_json(params["timestamp"]);
+	locker_type _(m_playlist_mutex);
+	const auto index = params["index"].asUInt64();
+	if(!is_index_still_valid(timestamp, index))
+		return json_error("Index has been altered");
+	if(!m_playlist.set_current_index(index))
+		return json_error("Failed to set song");
+	else {
+		m_next_action = playlist_actions::none;
+		m_decoder.stop_decode();
+		m_playlist_cond.notify_one();
+		return json_success();
+	}
 }

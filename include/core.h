@@ -43,6 +43,7 @@ public:
 	void run();
 private:
 	using command_type = std::function<Json::Value(core*, const Json::Value&)>;
+	using time_point = event_manager::time_point;
 	enum class playlist_actions {
 		none,
 		next,
@@ -58,12 +59,14 @@ private:
 	Json::Value previous_song(const Json::Value&);
 	Json::Value playlist_mode(const Json::Value&);
 	Json::Value set_playlist_mode(const Json::Value& params);
+	Json::Value set_current_song(const Json::Value& params);
 	Json::Value show_playlist(const Json::Value& params);
 	Json::Value clear_playlist(const Json::Value&);
 	Json::Value pause(const Json::Value&);
 	Json::Value play(const Json::Value&);
 	Json::Value player_status(const Json::Value&);
 	Json::Value new_events(const Json::Value& params);
+	Json::Value delete_song(const Json::Value& params);
 	// Sharing commands
 	Json::Value list_shared_dirs(const Json::Value&);
 	Json::Value list_directory(const Json::Value& params);
@@ -73,7 +76,10 @@ private:
 	Json::Value json_success() const;
 	Json::Value json_error(std::string error_msg) const;
 
+	bool is_index_still_valid(const time_point& timestamp, size_t index);
+
 	void execute_next_action();
+	event_manager::time_point time_point_from_json(const Json::Value& value);
 
 	boost::asio::io_service m_io_service;
 	server m_server;

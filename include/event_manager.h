@@ -35,6 +35,8 @@ public:
 	void add_play_event();
 	void add_playlist_mode_changed_event(std::string value);
 	std::tuple<Json::Value, time_point> get_new_events(time_point start_point);
+	std::vector<Json::Value> find_new_events(time_point start_point, 
+		const std::string& type);
 private:
 	std::map<time_point, Json::Value> m_events;
 	std::mutex m_mutex;

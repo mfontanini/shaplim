@@ -35,11 +35,9 @@ void playlist::add_song(song a_song)
 	}
 }
 
-bool playlist::delete_song(size_t index, const std::string& name)
+bool playlist::delete_song(size_t index)
 {
 	if(index >= m_songs.size())
-		return false;
-	if(m_songs[index].path() != name)
 		return false;
 	size_t to_delete = 0;
     for(size_t i = 0; i < m_songs_order.size(); ++i) {
@@ -84,6 +82,14 @@ int playlist::current_index() const
 		return -1;
 	else 
 		return m_songs_order[m_current_index];
+}
+
+bool playlist::set_current_index(size_t index)
+{
+	if(index >= m_songs.size() || index == m_current_index)
+		return false;
+	m_current_index = index;
+	return true;
 }
 
 void playlist::clear()

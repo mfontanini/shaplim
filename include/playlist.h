@@ -33,7 +33,7 @@ public:
 	playlist();
 
 	void add_song(song a_song);
-	bool delete_song(size_t index, const std::string& name);
+	bool delete_song(size_t index);
 	const std::vector<song>& songs() const;
 
 	void next();
@@ -41,6 +41,7 @@ public:
 	song current() const;
 	bool has_current() const;
 	int current_index() const;
+	bool set_current_index(size_t index);
 	bool songs_left() const;
 	void clear();
 	mode playlist_mode() const;
