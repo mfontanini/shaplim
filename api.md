@@ -222,3 +222,125 @@ one
     "result" : bool
 }
 ```
+## Delete song
+
+Deletes a specific song in the playlist. A timestamp must be provided to make sure that the song being deleted is actually the desired one.
+
+* Command type: `delete_song`
+* Example:
+```javascript
+{
+    "type" : "delete_song",
+    "index" : int,
+    "timestamp" : int
+}
+```
+* Output: 
+```javascript
+{ 
+    "result" : bool
+}
+```
+## Set current song
+
+Plays a song that is already in the playlist. A timestamp must be provided to make sure that the song being played is actually the desired one.
+
+* Command type: `set_current_song`
+* Example:
+```javascript
+{
+    "type" : "set_current_song",
+    "index" : int,
+    "timestamp" : int
+}
+```
+* Output: 
+```javascript
+{ 
+    "result" : bool
+}
+```
+## Show playlist
+
+Retrieves the current playlist. The current song is indicated as a 0-index based number, whithin the given song list. The timestamp key contains a number that should be used later when using the "new_events" command.
+
+* Command type: `show_playlist`
+* Example:
+```javascript
+{
+    "type" : "show_playlist"
+}
+```
+* Output: 
+```javascript
+{ 
+    "result" : bool,
+    "songs" : [ string ],
+    "current" : int,
+    "timestamp" : int
+}
+```
+## New events
+
+Retrieves all of the events that happened from a time point.
+
+* Command type: `new_events`
+* Example:
+```javascript
+{
+    "type" : "new_events",
+    "timestamp" int
+}
+```
+* Output: 
+```javascript
+{ 
+    "result" : bool,
+    "events" : [
+        { }
+    ],
+    "timestamp" : int
+}
+```
+### Events
+
+The events can be have the following structure, depending on the event type:
+* Add songs: Indicates that one or more songs were added at the end of the playlist.
+```javascript
+{
+    "type" : "add_songs",
+    "songs" : [ string ]
+}
+```
+* Play song: Indicates that some song on the playlist was/is being played. The index is the playlist song number.
+```javascript
+{
+    "type" : "play_song",
+    "index" : int
+}
+```
+* Pause: Indicates that the player was paused.
+```javascript
+{
+    "type" : "pause"
+}
+```
+* Play: Indicates that the player changed from state paused to playing.
+```javascript
+{
+    "type" : "play"
+}
+```
+* Playlist mode changed: Indicates that the playlist mode has been changed. The "mode" key can be either "default" or "shuffle".
+```javascript
+{
+    "type" : "playlist_mode_changed",
+    "mode" : string
+}
+```
+* Play: Indicates that the player changed from state paused to playing.
+```javascript
+{
+    "type" : "play"
+}
+```
