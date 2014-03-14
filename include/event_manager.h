@@ -43,9 +43,11 @@ public:
 
 	void add_songs_add_event(const std::vector<std::string>& songs);
 	void add_play_song_event(int index);
+	void add_delete_song_event(int index);
 	void add_pause_event();
 	void add_play_event();
 	void add_playlist_mode_changed_event(std::string value);
+
 	std::tuple<std::vector<event>, time_point> get_new_events(
 		time_point start_point);
 	std::vector<event> find_new_events(time_point start_point, 

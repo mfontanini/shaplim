@@ -383,8 +383,10 @@ Json::Value core::delete_song(const Json::Value& params)
 		m_next_action = playlist_actions::none;
 		m_decoder.stop_decode();
 	}
-	if(m_playlist.delete_song(index))
+	if(m_playlist.delete_song(index)) {
+		m_event_manager.add_delete_song_event(index);
 		return json_success();
+	}
 	else
 		return json_error("Failed to delete song");
 }
