@@ -19,39 +19,61 @@
 
 using locker_type = std::lock_guard<std::mutex>;
 
+event::event(std::shared_ptr<Json::Value> data)
+: m_data(std::move(data))
+{
+
+}
+
+const Json::Value& event::json_data() const
+{
+	return *m_data;
+}
+
+std::string event::event_type() const
+{
+	return (*m_data)["type"].asString();
+}
+
 void event_manager::add_songs_add_event(const std::vector<std::string>& songs)
 {
-	Json::Value event(Json::objectValue);
+	std::shared_ptr<Json::Value> event_ptr = std::make_shared<Json::Value>(
+		Json::objectValue
+	);
+	Json::Value& event = *event_ptr;
 	event["type"] = "add_songs";
 	event["songs"] = Json::Value(Json::arrayValue);
 	for(const auto& song : songs)
 		event["songs"].append(song);
 	locker_type _(m_mutex);
 	m_events.insert(
-		std::make_pair(clock_type::now(), std::move(event))
+		std::make_pair(clock_type::now(), std::move(event_ptr))
 	);
 }
 
 void event_manager::add_play_song_event(int index)
 {
-	Json::Value event(Json::objectValue);
+	std::shared_ptr<Json::Value> event_ptr = std::make_shared<Json::Value>(
+		Json::objectValue
+	);
+	Json::Value& event = *event_ptr;
 	event["type"] = "play_song";
 	event["index"] = index;
 	locker_type _(m_mutex);
 	m_events.insert(
-		std::make_pair(clock_type::now(), std::move(event))
+		std::make_pair(clock_type::now(), std::move(event_ptr))
 	);
 }
 
 auto event_manager::get_new_events(time_point start_point) 
-	-> std::tuple<Json::Value, time_point>
+	-> std::tuple<std::vector<event>, time_point>
 {
 	locker_type _(m_mutex);
 	auto iter = m_events.lower_bound(start_point);
 	auto now = clock_type::now();
-	Json::Value output(Json::arrayValue);
+	std::vector<event> output;
 	while(iter != m_events.end()) {
-		output.append(iter->second);
+		output.push_back(iter->second);
 		++iter;
 	}
 	return std::make_tuple(std::move(output), now);
@@ -59,43 +81,52 @@ auto event_manager::get_new_events(time_point start_point)
 
 void event_manager::add_pause_event()
 {
-	Json::Value event(Json::objectValue);
+	std::shared_ptr<Json::Value> event_ptr = std::make_shared<Json::Value>(
+		Json::objectValue
+	);
+	Json::Value& event = *event_ptr;
 	event["type"] = "pause";
 	locker_type _(m_mutex);
 	m_events.insert(
-		std::make_pair(clock_type::now(), std::move(event))
+		std::make_pair(clock_type::now(), std::move(event_ptr))
 	);
 }
 
 void event_manager::add_play_event()
 {
-	Json::Value event(Json::objectValue);
+	std::shared_ptr<Json::Value> event_ptr = std::make_shared<Json::Value>(
+		Json::objectValue
+	);
+	Json::Value& event = *event_ptr;
 	event["type"] = "play";
 	locker_type _(m_mutex);
 	m_events.insert(
-		std::make_pair(clock_type::now(), std::move(event))
+		std::make_pair(clock_type::now(), std::move(event_ptr))
 	);
 }
 
 void event_manager::add_playlist_mode_changed_event(std::string value)
 {
-	Json::Value event(Json::objectValue);
+	std::shared_ptr<Json::Value> event_ptr = std::make_shared<Json::Value>(
+		Json::objectValue
+	);
+	Json::Value& event = *event_ptr;
 	event["type"] = "playlist_mode_changed";
 	event["mode"] = std::move(value);
 	locker_type _(m_mutex);
 	m_events.insert(
-		std::make_pair(clock_type::now(), std::move(event))
+		std::make_pair(clock_type::now(), std::move(event_ptr))
 	);
 }
 
-std::vector<Json::Value> event_manager::find_new_events(time_point start_point, 
+std::vector<event> event_manager::find_new_events(time_point start_point, 
 	const std::string& type)
 {
 	locker_type _(m_mutex);
-	std::vector<Json::Value> output;
+	std::vector<event> output;
 	auto iter = m_events.lower_bound(start_point);
 	while(iter != m_events.end()) {
-		if(iter->second["type"] == type)
+		if(iter->second.event_type() == type)
 			output.push_back(iter->second);
 		++iter;
 	}

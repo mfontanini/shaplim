@@ -176,7 +176,7 @@ bool core::is_index_still_valid(const time_point& timestamp, size_t index)
 	auto erase_events = m_event_manager.find_new_events(timestamp, "delete_song");
 	for(const auto& event : erase_events) {
 		// TODO: create a class for events
-		if(event["index"].asUInt64() <= index)
+		if(event.json_data()["index"].asUInt64() <= index)
 			return false;
 	}
 	return true;
@@ -362,7 +362,7 @@ Json::Value core::new_events(const Json::Value& params)
 	Json::Value output(Json::objectValue);
 	output["events"] = Json::Value(Json::arrayValue);
 	for(const auto& event : std::get<0>(events_tuple))
-		output["events"].append(event);
+		output["events"].append(event.json_data());
 	output["result"] = true;
 	output["timestamp"] = static_cast<Json::UInt64>(
 		std::get<1>(events_tuple).time_since_epoch().count()

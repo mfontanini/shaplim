@@ -22,7 +22,19 @@
 #include <map>
 #include <mutex>
 #include <tuple>
+#include <memory>
+#include <string>
 #include <jsoncpp/json/value.h>
+
+class event {
+public:
+	event(std::shared_ptr<Json::Value> data);
+
+	const Json::Value& json_data() const;
+	std::string event_type() const;
+private:
+	std::shared_ptr<const Json::Value> m_data;
+};
 
 class event_manager {
 public:
@@ -34,11 +46,12 @@ public:
 	void add_pause_event();
 	void add_play_event();
 	void add_playlist_mode_changed_event(std::string value);
-	std::tuple<Json::Value, time_point> get_new_events(time_point start_point);
-	std::vector<Json::Value> find_new_events(time_point start_point, 
+	std::tuple<std::vector<event>, time_point> get_new_events(
+		time_point start_point);
+	std::vector<event> find_new_events(time_point start_point, 
 		const std::string& type);
 private:
-	std::map<time_point, Json::Value> m_events;
+	std::map<time_point, event> m_events;
 	std::mutex m_mutex;
 };
 
