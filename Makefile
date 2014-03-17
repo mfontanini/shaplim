@@ -2,7 +2,7 @@ CXX=g++
 CP=cp
 CXXFLAGS= -c -Wall -g -O2 -std=c++11
 INCLUDE = -Iinclude
-LDFLAGS= -lpthread -lportaudio -lmpg123 -lboost_iostreams -lboost_system -lboost_filesystem -ljsoncpp
+LDFLAGS= -lpthread -lportaudio -lmpg123 -lboost_iostreams -lboost_system -lboost_filesystem -ljsoncpp -ltag
 RM=rm
 SOURCES= $(wildcard src/*.cpp)
 OBJECTS=$(SOURCES:.cpp=.o)

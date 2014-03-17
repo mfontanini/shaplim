@@ -36,3 +36,17 @@ const directory& sharing_manager::find_directory(const std::string& full_path) c
 	directory::path_type dir_path(full_path);
 	return m_virtual_root.find_directory(dir_path.begin(), dir_path.end());
 }
+
+std::string sharing_manager::find_full_path(const std::string& shared_path) const
+{
+	directory::path_type dir_path(shared_path);
+	auto end = dir_path.begin();
+	++end;
+	const auto& dir = m_virtual_root.find_directory(dir_path.begin(), end);
+	auto path = dir.path();
+	while(end != dir_path.end()) {
+		path /= *end;
+		++end;
+	}
+	return path.string();
+}

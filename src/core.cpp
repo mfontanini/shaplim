@@ -24,7 +24,6 @@ using boost::algorithm::starts_with;
 using locker_type = std::lock_guard<std::mutex>;
 
 std::map<std::string, core::command_type> core::m_commands = {
-	{ "add_songs", std::mem_fn(&core::add_songs) },
 	{ "next_song", std::mem_fn(&core::next_song) },
 	{ "previous_song", std::mem_fn(&core::previous_song) },
 	{ "playlist_mode", std::mem_fn(&core::playlist_mode) },
@@ -40,6 +39,7 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "player_status", std::mem_fn(&core::player_status) },
 	{ "delete_song", std::mem_fn(&core::delete_song) },
 	{ "set_current_song", std::mem_fn(&core::set_current_song) },
+	{ "song_info", std::mem_fn(&core::song_info) },
 };
 
 class fatal_exception : public std::exception {
@@ -92,10 +92,12 @@ void core::decode_loop()
 				current_index = m_playlist.current_index();
 				m_next_action = playlist_actions::next;
 			}
-			std::cout << song_to_play.path() << std::endl;
 			m_event_manager.add_play_song_event(current_index);
-			if(song_to_play.schema() == song::schema_type::file)
-				stream = make_file_song_stream(song_to_play.path());
+			if(song_to_play.schema() == song::schema_type::file) {
+				auto full_path = m_sharing_manager.find_full_path(song_to_play.path());
+				std::cout << full_path << std::endl;
+				stream = make_file_song_stream(full_path);
+			}
 			else {
 				std::cout << "Unknown schema for " << song_to_play.path() << std::endl;
 			}
@@ -184,22 +186,6 @@ bool core::is_index_still_valid(const time_point& timestamp, size_t index)
 
 // Commands
 
-Json::Value core::add_songs(const Json::Value& params) 
-{
-	std::vector<std::string> songs;
-	{
-		locker_type _(m_playlist_mutex);
-		for(const auto& song : params) {
-			auto name = song.asString();
-			m_playlist.add_song(name);
-			songs.push_back(std::move(name));
-		}
-		m_playlist_cond.notify_one();
-	}
-	m_event_manager.add_songs_add_event(songs);
-	return json_success();
-}
-
 Json::Value core::next_song(const Json::Value&) 
 {
 	{
@@ -231,9 +217,7 @@ Json::Value core::show_playlist(const Json::Value& params)
 		const auto& songs = m_playlist.songs();
 		output["songs"] = Json::Value(Json::arrayValue);
 		for(const auto& item : songs) {
-			const auto& path = item.path();
-			auto index = path.rfind('/');
-			output["songs"].append(path.substr(index + 1));
+			output["songs"].append(item.path());
 		}
 		output["current"] = static_cast<Json::Int>(m_playlist.current_index());
 	}
@@ -336,7 +320,7 @@ Json::Value core::list_directory(const Json::Value& params)
 
 Json::Value core::add_shared_songs(const Json::Value& params)
 {
-	if(!params.isMember("base_path") || !params.isMember("songs"))
+	if(!params.isObject() || !params.isMember("base_path") || !params.isMember("songs"))
 		return json_error("Expected 'base_path' and 'songs' keys");
 	auto base_path = params["base_path"].asString();
 	const auto& root_dir = m_sharing_manager.find_directory(base_path);
@@ -344,7 +328,8 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 	{
 		locker_type _(m_playlist_mutex);
 		for(const auto& key : params["songs"]) {
-			auto song_path = root_dir.path_for_file(key.asString());
+			// TODO: check if it exists
+			auto song_path = base_path + "/" + key.asString();
 			m_playlist.add_song(song_path);
 			songs.push_back(std::move(song_path));
 		}
@@ -372,7 +357,7 @@ Json::Value core::new_events(const Json::Value& params)
 
 Json::Value core::delete_song(const Json::Value& params)
 {
-	if(!params.isMember("timestamp") || !params.isMember("index"))
+	if(!params.isObject() || !params.isMember("timestamp") || !params.isMember("index"))
 		return json_error("Expected 'timestamp' and 'index' keys");
 	auto timestamp = time_point_from_json(params["timestamp"]);
 	locker_type _(m_playlist_mutex);
@@ -393,7 +378,7 @@ Json::Value core::delete_song(const Json::Value& params)
 
 Json::Value core::set_current_song(const Json::Value& params)
 {
-	if(!params.isMember("timestamp") || !params.isMember("index"))
+	if(!params.isObject() || !params.isMember("timestamp") || !params.isMember("index"))
 		return json_error("Expected 'timestamp' and 'index' keys");
 	auto timestamp = time_point_from_json(params["timestamp"]);
 	locker_type _(m_playlist_mutex);
@@ -408,4 +393,43 @@ Json::Value core::set_current_song(const Json::Value& params)
 		m_playlist_cond.notify_one();
 		return json_success();
 	}
+}
+
+Json::Value core::song_info(const Json::Value& params)
+{
+	if(!params.isObject() || !params.isMember("song"))
+		return json_error("Expected 'song' key");
+	if(params.isMember("fields") && !params["fields"].isArray())
+		return json_error("The 'fields' key should contain an array");
+	auto param = params.asString();
+	std::set<std::string> to_retrieve = {
+		"album",
+		"artist",
+		"title",
+		"length",
+		"picture",
+		"picture_mime"
+	};
+	for(const auto& field : params["fields"]) {
+		if(to_retrieve.erase(field.asString()) == 0)
+			return json_error("Invalid key " + field.asString());
+	}
+	// TODO: path relativo
+	auto full_path = m_sharing_manager.find_full_path(param);
+	const auto& info = m_song_db.song_info(full_path);
+	Json::Value output(Json::objectValue);
+	output["result"] = true;
+	if(to_retrieve.count("album"))
+		output["album"] = info.album();
+	if(to_retrieve.count("artist"))
+		output["artist"] = info.artist();
+	if(to_retrieve.count("title"))
+		output["title"] = info.title();
+	if(to_retrieve.count("length"))
+		output["length"] = Json::UInt64(info.length().count());
+	if(to_retrieve.count("picture"))
+		output["picture"] = info.picture();
+	if(to_retrieve.count("picture_mime"))
+		output["picture_mime"] = info.picture_mime();
+	return output;
 }

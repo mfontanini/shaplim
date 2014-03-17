@@ -33,6 +33,7 @@
 #include "playback_manager.h"
 #include "sharing_manager.h"
 #include "event_manager.h"
+#include "song_database.h"
 
 class core {
 public:
@@ -71,6 +72,7 @@ private:
 	Json::Value list_shared_dirs(const Json::Value&);
 	Json::Value list_directory(const Json::Value& params);
 	Json::Value add_shared_songs(const Json::Value& params);
+	Json::Value song_info(const Json::Value& params);
 
 	static std::map<std::string, command_type> m_commands;
 	Json::Value json_success() const;
@@ -91,6 +93,7 @@ private:
 	std::thread m_decode_thread;
 	playlist_actions m_next_action;
 	event_manager m_event_manager;
+	song_database m_song_db;
 	std::mutex m_playlist_mutex;
 	std::condition_variable m_playlist_cond;
 };

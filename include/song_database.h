@@ -15,22 +15,37 @@
  * MA 02110-1301, USA.
  */
 
-#ifndef SHAPLIM_SHARING_MANAGER_H
-#define SHAPLIM_SHARING_MANAGER_H
+#ifndef SHAPLIM_SONG_DATABASE_H
+#define SHAPLIM_SONG_DATABASE_H
 
-#include <vector>
+#include <map>
+#include <mutex>
 #include <string>
-#include "directory.h"
+#include <chrono>
 
-class sharing_manager {
+class song_information {
 public:
-	sharing_manager(const std::vector<std::string>& shared_dirs);
+	song_information(const std::string& file_name);
 
-	std::vector<std::string> shared_directories();
-	const directory& find_directory(const std::string& full_path) const;
-	std::string find_full_path(const std::string& shared_path) const;
+	const std::string& artist() const;
+	const std::string& album() const;
+	const std::string& title() const;
+	const std::string& picture() const;
+	const std::string& picture_mime() const;
+	const std::chrono::seconds& length() const;
 private:
-	directory m_virtual_root;
+	std::string m_artist, m_album, m_title, m_picture, m_picture_mime;
+	std::chrono::seconds m_length;
 };
 
-#endif // SHAPLIM_SHARING_MANAGER_H
+class song_database {
+public:
+	const song_information& song_info(const std::string& path);
+private:
+	using db_type = std::map<std::string, song_information>;
+
+	db_type m_db;
+	std::mutex m_lock;
+};
+
+#endif // SHAPLIM_SONG_DATABASE_H
