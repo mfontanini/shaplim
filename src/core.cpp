@@ -84,6 +84,8 @@ void core::decode_loop()
 			{
 				std::unique_lock<std::mutex> lock(m_playlist_mutex);
 				execute_next_action();
+				if(!m_playlist.has_current())
+					m_event_manager.add_play_song_event(-1);
 				while(!m_playlist.has_current()) {
 					m_playlist_cond.wait(lock);
 					execute_next_action();
@@ -333,7 +335,11 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 			m_playlist.add_song(song_path);
 			songs.push_back(std::move(song_path));
 		}
-		m_playlist_cond.notify_one();
+		// If the playlist was empty, awaken the decoding thread
+		if(!m_playlist.has_current()) {
+			m_next_action = playlist_actions::next;
+			m_playlist_cond.notify_one();
+		}
 	}
 	m_event_manager.add_songs_add_event(songs);
 	return json_success();
@@ -402,17 +408,21 @@ Json::Value core::song_info(const Json::Value& params)
 	if(params.isMember("fields") && !params["fields"].isArray())
 		return json_error("The 'fields' key should contain an array");
 	auto param = params.asString();
-	std::set<std::string> to_retrieve = {
-		"album",
-		"artist",
-		"title",
-		"length",
-		"picture",
-		"picture_mime"
-	};
-	for(const auto& field : params["fields"]) {
-		if(to_retrieve.erase(field.asString()) == 0)
-			return json_error("Invalid key " + field.asString());
+	std::set<std::string> to_retrieve;
+	if(params.isMember("fields") && params["fields"].size() > 0) {
+		for(const auto& field : params["fields"]) {
+			to_retrieve.insert(field.asString());
+		}
+	}
+	else {
+		to_retrieve = {
+			"album",
+			"artist",
+			"title",
+			"length",
+			"picture",
+			"picture_mime"
+		};
 	}
 	// TODO: path relativo
 	auto full_path = m_sharing_manager.find_full_path(param);
