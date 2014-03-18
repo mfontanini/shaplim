@@ -338,8 +338,8 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 		// If the playlist was empty, awaken the decoding thread
 		if(!m_playlist.has_current()) {
 			m_next_action = playlist_actions::next;
-			m_playlist_cond.notify_one();
 		}
+		m_playlist_cond.notify_one();
 	}
 	m_event_manager.add_songs_add_event(songs);
 	return json_success();
