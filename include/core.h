@@ -67,7 +67,7 @@ private:
 	Json::Value play(const Json::Value&);
 	Json::Value player_status(const Json::Value&);
 	Json::Value new_events(const Json::Value& params);
-	Json::Value delete_song(const Json::Value& params);
+	Json::Value delete_songs(const Json::Value& params);
 	// Sharing commands
 	Json::Value list_shared_dirs(const Json::Value&);
 	Json::Value list_directory(const Json::Value& params);

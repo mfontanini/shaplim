@@ -37,7 +37,7 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "add_shared_songs", std::mem_fn(&core::add_shared_songs) },
 	{ "new_events", std::mem_fn(&core::new_events) },
 	{ "player_status", std::mem_fn(&core::player_status) },
-	{ "delete_song", std::mem_fn(&core::delete_song) },
+	{ "delete_songs", std::mem_fn(&core::delete_songs) },
 	{ "set_current_song", std::mem_fn(&core::set_current_song) },
 	{ "song_info", std::mem_fn(&core::song_info) },
 };
@@ -361,25 +361,37 @@ Json::Value core::new_events(const Json::Value& params)
 	return output;
 }
 
-Json::Value core::delete_song(const Json::Value& params)
+Json::Value core::delete_songs(const Json::Value& params)
 {
-	if(!params.isObject() || !params.isMember("timestamp") || !params.isMember("index"))
+	if(!params.isObject() || !params.isMember("timestamp") || !params.isMember("indexes"))
 		return json_error("Expected 'timestamp' and 'index' keys");
+	if(!params["indexes"].isArray() || params["indexes"].empty())
+		return json_error("Expected a list of integers.");
 	auto timestamp = time_point_from_json(params["timestamp"]);
-	locker_type _(m_playlist_mutex);
-	const auto index = params["index"].asUInt64();
-	if(!is_index_still_valid(timestamp, index))
-		return json_error("Index has been altered");
-	if(static_cast<int>(index) == m_playlist.current_index()) {
+	std::vector<size_t> indexes;
+	const auto& json_indexes = params["indexes"];
+	for(const auto& index : json_indexes) {
+		indexes.push_back(index.asUInt64());
+	}
+	std::sort(indexes.begin(), indexes.end());
+	bool should_alter_decoder = false;
+
+	{
+		locker_type _(m_playlist_mutex);
+		if(!is_index_still_valid(timestamp, indexes.back()) || indexes.back() >= m_playlist.song_count())
+			return json_error("Indexes have been altered");
+		for(auto iter = indexes.rbegin(); iter != indexes.rend(); ++iter) {
+			if(static_cast<int>(*iter) == m_playlist.current_index())
+				should_alter_decoder = true;
+			m_playlist.delete_song(*iter);
+		}
+	}
+	m_event_manager.add_delete_songs_event(indexes);
+	if(should_alter_decoder) {
 		m_next_action = playlist_actions::none;
 		m_decoder.stop_decode();
 	}
-	if(m_playlist.delete_song(index)) {
-		m_event_manager.add_delete_song_event(index);
-		return json_success();
-	}
-	else
-		return json_error("Failed to delete song");
+	return json_success();
 }
 
 Json::Value core::set_current_song(const Json::Value& params)

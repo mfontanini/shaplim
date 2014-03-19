@@ -22,6 +22,7 @@
 #include <map>
 #include <mutex>
 #include <tuple>
+#include <vector>
 #include <memory>
 #include <string>
 #include <jsoncpp/json/value.h>
@@ -43,7 +44,7 @@ public:
 
 	void add_songs_add_event(const std::vector<std::string>& songs);
 	void add_play_song_event(int index);
-	void add_delete_song_event(int index);
+	void add_delete_songs_event(const std::vector<size_t>& indexes);
 	void add_pause_event();
 	void add_play_event();
 	void add_playlist_mode_changed_event(std::string value);

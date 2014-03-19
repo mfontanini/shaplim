@@ -65,14 +65,17 @@ void event_manager::add_play_song_event(int index)
 	);
 }
 
-void event_manager::add_delete_song_event(int index)
+void event_manager::add_delete_songs_event(const std::vector<size_t>& indexes)
 {
 	std::shared_ptr<Json::Value> event_ptr = std::make_shared<Json::Value>(
 		Json::objectValue
 	);
 	Json::Value& event = *event_ptr;
-	event["type"] = "delete_song";
-	event["index"] = index;
+	event["type"] = "delete_songs";
+	event["indexes"] = Json::arrayValue;
+	auto &json_array = event["indexes"];
+	for(auto index : indexes)
+		json_array.append(static_cast<Json::UInt64>(index));
 	locker_type _(m_mutex);
 	m_events.insert(
 		std::make_pair(clock_type::now(), std::move(event_ptr))
