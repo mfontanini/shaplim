@@ -339,9 +339,9 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 		if(!m_playlist.has_current()) {
 			m_next_action = playlist_actions::next;
 		}
+		m_event_manager.add_songs_add_event(songs);
 		m_playlist_cond.notify_one();
 	}
-	m_event_manager.add_songs_add_event(songs);
 	return json_success();
 }
 
@@ -419,7 +419,7 @@ Json::Value core::song_info(const Json::Value& params)
 		return json_error("Expected 'song' key");
 	if(params.isMember("fields") && !params["fields"].isArray())
 		return json_error("The 'fields' key should contain an array");
-	auto param = params.asString();
+	auto song_path = params["song"].asString();
 	std::set<std::string> to_retrieve;
 	if(params.isMember("fields") && params["fields"].size() > 0) {
 		for(const auto& field : params["fields"]) {
@@ -437,7 +437,7 @@ Json::Value core::song_info(const Json::Value& params)
 		};
 	}
 	// TODO: path relativo
-	auto full_path = m_sharing_manager.find_full_path(param);
+	auto full_path = m_sharing_manager.find_full_path(song_path);
 	const auto& info = m_song_db.song_info(full_path);
 	Json::Value output(Json::objectValue);
 	output["result"] = true;

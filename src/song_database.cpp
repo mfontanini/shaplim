@@ -25,22 +25,23 @@
 #include "song_database.h"
 
 song_information::song_information(const std::string& file_name)
+: m_length()
 {
 	TagLib::MPEG::File f(file_name.c_str());
     auto tag = f.tag();
     m_artist = tag->artist().to8Bit();
     m_title = tag->title().to8Bit();
     m_album = tag->album().to8Bit();
-    if(f.audioProperties()) {
+    if(f.audioProperties())
     	m_length = std::chrono::seconds(f.audioProperties()->length());
-    }
     if(f.ID3v2Tag()) {
         const TagLib::ID3v2::FrameList& l = f.ID3v2Tag()->frameListMap()["APIC"];
         if(!l.isEmpty()) {
-            auto frame_data = l.front()->render();
-            TagLib::ID3v2::AttachedPictureFrame picture(frame_data);
-            m_picture_mime = picture.mimeType().to8Bit();
-            auto image = picture.picture();
+            using TagLib::ID3v2::AttachedPictureFrame;
+
+            auto picture_frame = static_cast<AttachedPictureFrame*> (*l.begin());
+            const auto& image = picture_frame->picture();
+            m_picture_mime = picture_frame->mimeType().to8Bit();
             using base64_text =	boost::archive::iterators::base64_from_binary<
 				boost::archive::iterators::transform_width<
     				const char *,
@@ -53,6 +54,9 @@ song_information::song_information(const std::string& file_name)
 				base64_text(image.data() + image.size()),
 				std::back_inserter(m_picture)
 			);
+            auto padding = image.size() % 3;
+            if(padding != 0)
+                m_picture.insert(m_picture.end(), 3 - padding, '=');
         }
     }
     if(m_artist.empty())
