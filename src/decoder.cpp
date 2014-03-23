@@ -26,3 +26,8 @@ void decoder::stop_decode()
 {
 	m_mp3_decoder.stop_decode();
 }
+
+float decoder::percent_so_far() 
+{
+	return m_mp3_decoder.percent_so_far();
+}

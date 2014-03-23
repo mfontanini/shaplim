@@ -36,6 +36,7 @@ public:
 
 	void decode(song_stream stream, types::decode_buffer_type& buffer, song_type type);
 	void stop_decode();
+	float percent_so_far();
 private:
 	mp3_decoder m_mp3_decoder;
 };

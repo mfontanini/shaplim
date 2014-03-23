@@ -36,6 +36,7 @@ public:
 
 	void decode(song_stream stream, types::decode_buffer_type &buffer);
 	void stop_decode();
+	float percent_so_far();
 
 	template<typename Functor>
 	void on_sample_rate_change(Functor callback)
@@ -52,6 +53,7 @@ private:
 	handle_type m_handle;
 	buffer_type m_buffer;
 	std::function<void(long long)> m_on_rate_change;
+	std::atomic<off_t> m_total_size, m_start_offset, m_current_offset;
 	std::atomic<bool> m_running;
 };
 

@@ -290,6 +290,7 @@ Json::Value core::player_status(const Json::Value&)
 	Json::Value output(Json::objectValue);
 	output["result"] = true;
 	output["status"] = m_playback.is_stream_active() ? "playing" : "paused";
+	output["current_song_percent"] = m_decoder.percent_so_far();
 	return output;
 }
 
