@@ -61,4 +61,20 @@ private:
 	callback_type m_callback;
 };
 
+class service_discovery_server {
+public:
+	service_discovery_server(boost::asio::io_service& io_service, short port);
+
+	void set_data_to_answer(std::string data);
+private:
+	void start_receive();
+	void handle_receive(const boost::system::error_code& error, std::size_t);
+	void handle_send(const boost::system::error_code&, std::size_t);
+
+	boost::asio::ip::udp::socket m_socket;
+	boost::asio::ip::udp::endpoint m_remote_endpoint;
+	std::string m_data_to_answer;
+	std::array<char, 1> m_read_buffer;
+};
+
 #endif // SHAPLIM_SERVER_H

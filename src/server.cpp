@@ -22,6 +22,7 @@
 #include "server.h"
 
 using boost::asio::ip::tcp;
+using boost::asio::ip::udp;
 
 session::session(socket_type sock, callback_type callback)
 : m_socket(std::move(sock)), m_read_buffer(), m_callback(std::move(callback))
@@ -91,7 +92,7 @@ void session::do_write()
 // server
 
 server::server(boost::asio::io_service& io_service, short port)
-: m_acceptor(io_service, tcp::endpoint(boost::asio::ip::address_v4::from_string("127.0.0.1"), port)),
+: m_acceptor(io_service, tcp::endpoint(tcp::v4(), port)),
 m_socket(io_service)
 {
 	do_accept();
@@ -114,4 +115,56 @@ void server::do_accept()
 void server::on_data_available(callback_type callback)
 {
 	m_callback = std::move(callback);
+}
+
+// service_discovery_server
+
+service_discovery_server::service_discovery_server(boost::asio::io_service& io_service, short port)
+: m_socket(io_service, udp::endpoint(udp::v4(), port))
+{
+	start_receive();
+}
+
+void service_discovery_server::set_data_to_answer(std::string data) 
+{
+	m_data_to_answer = std::move(data);
+}
+
+void service_discovery_server::start_receive() 
+{
+	m_socket.async_receive_from(
+    	boost::asio::buffer(m_read_buffer), 
+    	m_remote_endpoint,
+        std::bind(
+        	&service_discovery_server::handle_receive, 
+        	this,
+          	std::placeholders::_1,
+          	std::placeholders::_2
+        )
+	);
+}
+
+void service_discovery_server::handle_receive(
+	const boost::system::error_code& error, std::size_t) 
+{
+	if(!error || error == boost::asio::error::message_size) {
+      	m_socket.async_send_to(
+          boost::asio::buffer(m_data_to_answer), 
+            m_remote_endpoint,
+            std::bind(
+              &service_discovery_server::handle_send, 
+              this, 
+              std::placeholders::_1,
+              std::placeholders::_2
+            )
+        );
+
+      	start_receive();
+    }
+}
+
+void service_discovery_server::handle_send(
+	const boost::system::error_code&, std::size_t)
+{
+
 }

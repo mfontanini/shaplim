@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <jsoncpp/json/reader.h>
+#include <jsoncpp/json/writer.h>
 #include <boost/algorithm/string/predicate.hpp>
 #include "core.h"
 
@@ -50,8 +51,8 @@ public:
 };
 
 core::core(const shared_dirs_list& shared_dirs)
-: m_server(m_io_service, 1337), m_playback(m_buffer), 
-m_sharing_manager(shared_dirs),
+: m_server(m_io_service, 1337), m_discovery_server(m_io_service, 21283), 
+m_playback(m_buffer), m_sharing_manager(shared_dirs), 
 m_next_action(playlist_actions::none)
 {
 	m_decoder.on_sample_rate_change(
@@ -65,6 +66,12 @@ m_next_action(playlist_actions::none)
 			std::placeholders::_2
 		)
 	);
+	Json::Value object(Json::objectValue);
+	object["server_port"] = 1337;
+	object["server_version"] = 100;
+	object["server_name"] = "shaplim";
+	Json::FastWriter writer;
+	m_discovery_server.set_data_to_answer(writer.write(object));
 }
 
 void core::run()
@@ -252,7 +259,7 @@ Json::Value core::set_playlist_mode(const Json::Value& params)
 	locker_type _(m_playlist_mutex);
 	if(param == "shuffle")
 		m_playlist.playlist_mode(playlist::mode::random_order);
-	else if(param != "default")
+	else if(param == "default")
 		m_playlist.playlist_mode(playlist::mode::default_order);
 	else
 		return json_error("Valid modes are 'shuffle' and 'default'");

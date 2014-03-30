@@ -85,6 +85,7 @@ private:
 
 	boost::asio::io_service m_io_service;
 	server m_server;
+	service_discovery_server m_discovery_server;
 	playlist m_playlist;
 	types::decode_buffer_type m_buffer;
 	decoder m_decoder;

@@ -29,9 +29,9 @@ song_information::song_information(const std::string& file_name)
 {
 	TagLib::MPEG::File f(file_name.c_str());
     auto tag = f.tag();
-    m_artist = tag->artist().to8Bit();
-    m_title = tag->title().to8Bit();
-    m_album = tag->album().to8Bit();
+    m_artist = tag->artist().to8Bit(true);
+    m_title = tag->title().to8Bit(true);
+    m_album = tag->album().to8Bit(true);
     if(f.audioProperties())
     	m_length = std::chrono::seconds(f.audioProperties()->length());
     if(f.ID3v2Tag()) {
