@@ -294,10 +294,19 @@ Json::Value core::play(const Json::Value&)
 
 Json::Value core::player_status(const Json::Value&)
 {
+	playlist::mode mode;
+	{
+		locker_type _(m_playlist_mutex);
+		mode = m_playlist.playlist_mode();
+	}
 	Json::Value output(Json::objectValue);
 	output["result"] = true;
 	output["status"] = m_playback.is_stream_active() ? "playing" : "paused";
 	output["current_song_percent"] = m_decoder.percent_so_far();
+	if(mode == playlist::mode::random_order)
+		output["playlist_mode"] = "shuffle";
+	else
+		output["playlist_mode"] = "default";
 	return output;
 }
 
