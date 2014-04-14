@@ -37,3 +37,11 @@ auto song::schema() const -> schema_type
 {
 	return m_schema;
 }
+
+std::string song::to_string() const
+{
+	if(m_schema == schema_type::file)
+		return m_path;
+	else
+		return "youtube://" + m_path;
+}

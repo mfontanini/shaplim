@@ -19,19 +19,24 @@
 #define SHAPLIM_DECODER_H
 
 #include "mp3_decoder.h"
+#include "generic_decoder.h"
 #include "song_stream.h"
 #include "types.h"
 
 class decoder {
 public:
 	enum class song_type {
-		mp3
+		mp3,
+		generic
 	};
 
 	template<typename Functor>
 	void on_sample_rate_change(Functor callback) 
 	{
-		m_mp3_decoder.on_sample_rate_change(callback);
+		if(m_current_song_type == song_type::mp3)
+			m_mp3_decoder.on_sample_rate_change(callback);
+		else
+			m_generic_decoder.on_sample_rate_change(callback);
 	}
 
 	void decode(song_stream stream, types::decode_buffer_type& buffer, song_type type);
@@ -39,6 +44,8 @@ public:
 	float percent_so_far();
 private:
 	mp3_decoder m_mp3_decoder;
+	generic_decoder m_generic_decoder;
+	song_type m_current_song_type;
 };
 
 #endif // SHAPLIM_DECODER_H

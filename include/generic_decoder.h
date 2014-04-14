@@ -15,28 +15,38 @@
  * MA 02110-1301, USA.
  */
 
-#ifndef SHAPLIM_SONG_H
-#define SHAPLIM_SONG_H
+#ifndef SHAPLIM_GENERIC_DECODER_H
+#define SHAPLIM_GENERIC_DECODER_H
 
-#include <string>
+#include <memory>
+#include <atomic>
+#include <functional>
+#include "types.h"
 
-class song {
+extern "C" {
+    #include <libavformat/avformat.h>
+}
+
+class song_stream;
+
+class generic_decoder {
 public:
-	enum class schema_type {
-		file,
-		youtube_stream
-	};
+	generic_decoder();
 
-	song();
-	song(std::string path, schema_type song_schema = schema_type::file);
+	void decode(song_stream stream, types::decode_buffer_type &buffer);
+	void stop_decode();
+	float percent_so_far();
 
-	const std::string& path() const;
-	schema_type schema() const;
-
-	std::string to_string() const;
+	template<typename Functor>
+	void on_sample_rate_change(Functor callback)
+	{
+		m_on_rate_change = std::move(callback);
+	}
 private:
-	std::string m_path;
-	schema_type m_schema;
+	std::shared_ptr<AVFrame> m_frame;
+	AVPacket m_packet;
+	std::function<void(long long)> m_on_rate_change;
+	std::atomic<bool> m_running;
 };
 
-#endif // SHAPLIM_SONG_H
+#endif // SHAPLIM_GENERIC_DECODER_H

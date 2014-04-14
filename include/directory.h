@@ -53,6 +53,7 @@ private:
 	template<typename InputIterator>
 	friend directory make_virtual_directory(InputIterator start, 
 		InputIterator end);
+	static bool is_media_file(const std::string& extension);
 
 	path_type m_path;
 	boost::filesystem::path::iterator m_name;

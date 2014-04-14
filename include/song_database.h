@@ -25,13 +25,19 @@
 
 class song_information {
 public:
+	song_information();
 	song_information(const std::string& file_name);
 
 	const std::string& artist() const;
+	void artist(std::string data);
 	const std::string& album() const;
+	void album(std::string data);
 	const std::string& title() const;
+	void title(std::string data);
 	const std::string& picture() const;
+	void picture(std::string data);
 	const std::string& picture_mime() const;
+	void length(std::chrono::seconds data);
 	const std::chrono::seconds& length() const;
 private:
 	std::string m_artist, m_album, m_title, m_picture, m_picture_mime;
@@ -40,7 +46,10 @@ private:
 
 class song_database {
 public:
+	static song_database instance;
+
 	const song_information& song_info(const std::string& path);
+	void set_song_info(std::string path, song_information data);
 private:
 	using db_type = std::map<std::string, song_information>;
 

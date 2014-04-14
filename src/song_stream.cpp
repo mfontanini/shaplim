@@ -16,41 +16,7 @@
  */
 
 #include "song_stream.h"
-
-// **********************
-// ** song_stream_impl **
-// **********************
-
-file_song_stream_impl::file_song_stream_impl(const std::string& path)
-: m_file(path), m_data(m_file.data())
-{
-	
-}
-
-size_t file_song_stream_impl::size() const
-{
-	return m_file.size();
-}
-
-const char* file_song_stream_impl::buffer_ptr() const
-{
-	return m_data;
-}
-
-size_t file_song_stream_impl::available() const
-{
-	return size() - (m_data - m_file.data());
-}
-
-void file_song_stream_impl::advance(size_t n)
-{
-	m_data += n;
-}
-
-bool file_song_stream_impl::bytes_left() const
-{
-	return available() != 0;
-}
+#include "song_stream_impl.h"
 
 // *****************
 // ** song_stream **
@@ -62,12 +28,12 @@ song_stream::song_stream(std::unique_ptr<song_stream_impl> impl)
 
 }
 
-const char* song_stream::buffer_ptr() const
+const char* song_stream::buffer_ptr()
 {
 	return m_impl->buffer_ptr();
 }
 
-size_t song_stream::available() const
+size_t song_stream::available()
 {
 	return m_impl->available();
 }
@@ -77,14 +43,24 @@ void song_stream::advance(size_t n)
 	m_impl->advance(n);
 }
 
-size_t song_stream::size() const
+size_t song_stream::size()
 {
 	return m_impl->size();
 }
 
-bool song_stream::bytes_left() const
+bool song_stream::bytes_left()
 {
 	return m_impl->bytes_left();
+}
+
+size_t song_stream::current_offset()
+{
+	return m_impl->current_offset();
+}
+
+void song_stream::seek(size_t pos)
+{
+	m_impl->seek(pos);
 }
 
 song_stream make_file_song_stream(const std::string& path)
@@ -92,6 +68,16 @@ song_stream make_file_song_stream(const std::string& path)
 	return song_stream(
 		std::unique_ptr<song_stream_impl>(
 			new file_song_stream_impl(path)
+		)
+	);
+}
+
+song_stream make_youtube_song_stream(const std::string& id, 
+	boost::asio::io_service& service)
+{
+	return song_stream(
+		std::unique_ptr<song_stream_impl>(
+			new youtube_song_stream_impl(id, service)
 		)
 	);
 }

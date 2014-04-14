@@ -89,13 +89,19 @@ void directory::load() const
         	m_directories.emplace_back(iter->path());
      	}
      	// TODO: move the extension check to some object
-     	else if(is_regular_file(*iter) && extension(*iter) == ".mp3") {
+     	else if(is_regular_file(*iter) && is_media_file(extension(*iter))) {
      		m_files.emplace_back(iter->path().filename().string());
      	}
    	}
    	std::sort(m_directories.begin(), m_directories.end());
    	std::sort(m_files.begin(), m_files.end());
 	m_loaded = true;
+}
+
+bool directory::is_media_file(const std::string& extension)
+{
+	static std::set<std::string> extensions = { ".mp3", ".mp4", ".avi" };
+	return extensions.count(extension) == 1;
 }
 
 void directory::add_directory(directory dir)

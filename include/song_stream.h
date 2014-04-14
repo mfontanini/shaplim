@@ -20,46 +20,43 @@
 
 #include <memory>
 #include <vector>
-#include <boost/iostreams/device/mapped_file.hpp>
+
+namespace boost {
+namespace asio {
+	class io_service;
+}
+}
 
 class song_stream_impl {
 public:
 	using const_iterator = std::vector<unsigned char>::const_iterator;
 
 	virtual ~song_stream_impl() {};
-	virtual size_t size() const = 0;
-	virtual const char* buffer_ptr() const = 0;
-	virtual size_t available() const = 0;
+	virtual size_t size() = 0;
+	virtual const char* buffer_ptr() = 0;
+	virtual size_t available() = 0;
 	virtual void advance(size_t n) = 0;
-	virtual bool bytes_left() const = 0;
-};
-
-class file_song_stream_impl : public song_stream_impl {
-public:
-	file_song_stream_impl(const std::string& path);
-	const char* buffer_ptr() const;
-	size_t available() const;
-	void advance(size_t n);
-	size_t size() const;
-	bool bytes_left() const;
-private:
-	boost::iostreams::mapped_file_source m_file;
-	const char* m_data;
+	virtual bool bytes_left() = 0;
+	virtual size_t current_offset() = 0;
+	virtual void seek(size_t pos) = 0;
 };
 
 class song_stream {
 public:
 	song_stream(std::unique_ptr<song_stream_impl> impl = nullptr);
 
-	const char* buffer_ptr() const;
-	size_t available() const;
+	const char* buffer_ptr();
+	size_t available();
 	void advance(size_t n);
-	size_t size() const;
-	bool bytes_left() const;
+	size_t size();
+	bool bytes_left();
+	size_t current_offset();
+	void seek(size_t pos);
 private:
 	std::unique_ptr<song_stream_impl> m_impl;
 };
 
 song_stream make_file_song_stream(const std::string& path);
+song_stream make_youtube_song_stream(const std::string& id, boost::asio::io_service& service);
 
 #endif // SHAPLIM_SONG_STREAM_H

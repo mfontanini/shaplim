@@ -37,8 +37,8 @@ void session::start()
 
 void session::do_read()
 {
-	auto self = shared_from_this();
-    boost::asio::async_read_until(
+  auto self = shared_from_this();
+  boost::asio::async_read_until(
     	m_socket,
     	m_read_buffer,
     	'\n',

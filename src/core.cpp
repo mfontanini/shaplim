@@ -22,6 +22,7 @@
 #include "core.h"
 
 using boost::algorithm::starts_with;
+using boost::algorithm::ends_with;
 using locker_type = std::lock_guard<std::mutex>;
 
 std::map<std::string, core::command_type> core::m_commands = {
@@ -41,6 +42,7 @@ std::map<std::string, core::command_type> core::m_commands = {
 	{ "delete_songs", std::mem_fn(&core::delete_songs) },
 	{ "set_current_song", std::mem_fn(&core::set_current_song) },
 	{ "song_info", std::mem_fn(&core::song_info) },
+	{ "add_youtube_songs", std::mem_fn(&core::add_youtube_songs) },
 };
 
 class fatal_exception : public std::exception {
@@ -102,15 +104,23 @@ void core::decode_loop()
 				m_next_action = playlist_actions::next;
 			}
 			m_event_manager.add_play_song_event(current_index);
+			decoder::song_type song_type = decoder::song_type::generic;
+
 			if(song_to_play.schema() == song::schema_type::file) {
 				auto full_path = m_sharing_manager.find_full_path(song_to_play.path());
+				if(ends_with(full_path, "mp3"))
+					song_type = decoder::song_type::mp3;
 				std::cout << full_path << std::endl;
 				stream = make_file_song_stream(full_path);
+			}
+			else if(song_to_play.schema() == song::schema_type::youtube_stream) {
+				std::cout << "youtube://" << song_to_play.path() << std::endl;
+				stream = make_youtube_song_stream(song_to_play.path(), m_io_service);
 			}
 			else {
 				std::cout << "Unknown schema for " << song_to_play.path() << std::endl;
 			}
-			m_decoder.decode(std::move(stream), m_buffer, decoder::song_type::mp3);
+			m_decoder.decode(std::move(stream), m_buffer, song_type);
 		}
 		catch(std::exception& ex) {
 			std::cout << "Error: " << ex.what() << std::endl;
@@ -226,7 +236,7 @@ Json::Value core::show_playlist(const Json::Value& params)
 		const auto& songs = m_playlist.songs();
 		output["songs"] = Json::Value(Json::arrayValue);
 		for(const auto& item : songs) {
-			output["songs"].append(item.path());
+			output["songs"].append(item.to_string());
 		}
 		output["current"] = static_cast<Json::Int>(m_playlist.current_index());
 	}
@@ -344,21 +354,38 @@ Json::Value core::add_shared_songs(const Json::Value& params)
 	auto base_path = params["base_path"].asString();
 	const auto& root_dir = m_sharing_manager.find_directory(base_path);
 	std::vector<std::string> songs;
-	{
-		locker_type _(m_playlist_mutex);
-		for(const auto& key : params["songs"]) {
-			// TODO: check if it exists
-			auto song_path = base_path + "/" + key.asString();
-			m_playlist.add_song(song_path);
-			songs.push_back(std::move(song_path));
-		}
-		// If the playlist was empty, awaken the decoding thread
-		if(!m_playlist.has_current()) {
-			m_next_action = playlist_actions::next;
-		}
-		m_event_manager.add_songs_add_event(songs);
-		m_playlist_cond.notify_one();
+	locker_type _(m_playlist_mutex);
+	for(const auto& key : params["songs"]) {
+		// TODO: check if it exists
+		auto song_path = base_path + "/" + key.asString();
+		m_playlist.add_song(song_path);
+		songs.push_back(std::move(song_path));
 	}
+	// If the playlist was empty, awaken the decoding thread
+	if(!m_playlist.has_current()) {
+		m_next_action = playlist_actions::next;
+	}
+	m_event_manager.add_songs_add_event(songs);
+	m_playlist_cond.notify_one();
+	return json_success();
+}
+
+Json::Value core::add_youtube_songs(const Json::Value& params)
+{
+	if(!params.isArray())
+		return json_error("'params' should be an array of identifiers.");
+	std::vector<std::string> songs;
+	locker_type _(m_playlist_mutex);
+	for(const auto& item : params) {
+		auto id = item.asString();
+		m_playlist.add_song(song(id, song::schema_type::youtube_stream));
+		songs.push_back("youtube://" + id);
+	}
+	if(!m_playlist.has_current()) {
+		m_next_action = playlist_actions::next;
+	}
+	m_event_manager.add_songs_add_event(songs);
+	m_playlist_cond.notify_one();
 	return json_success();
 }
 
@@ -453,9 +480,15 @@ Json::Value core::song_info(const Json::Value& params)
 			"picture_mime"
 		};
 	}
-	// TODO: path relativo
-	auto full_path = m_sharing_manager.find_full_path(song_path);
-	const auto& info = m_song_db.song_info(full_path);
+	std::string full_path;
+	std::string youtube_identifier = "youtube://";
+	if(starts_with(song_path, youtube_identifier)) {
+		full_path = song_path;
+	}
+	else {
+		full_path = m_sharing_manager.find_full_path(song_path);
+	}
+	const auto& info = song_database::instance.song_info(full_path);
 	Json::Value output(Json::objectValue);
 	output["result"] = true;
 	if(to_retrieve.count("album"))

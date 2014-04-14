@@ -24,6 +24,13 @@
 #include <taglib/attachedpictureframe.h>
 #include "song_database.h"
 
+song_information::song_information()
+: m_artist("Unknown"), m_album("Unknown"), m_title("Unknown"), m_picture(), 
+m_picture_mime(), m_length()
+{
+
+}
+
 song_information::song_information(const std::string& file_name)
 : m_length()
 {
@@ -97,11 +104,38 @@ const std::chrono::seconds& song_information::length() const
 	return m_length;
 }
 
+void song_information::artist(std::string data)
+{
+    m_artist = std::move(data);
+}
+
+void song_information::album(std::string data)
+{
+    m_album = std::move(data);
+}
+
+void song_information::title(std::string data)
+{
+    m_title = std::move(data);
+}
+
+void song_information::picture(std::string data)
+{
+    m_picture = std::move(data);
+}
+
+void song_information::length(std::chrono::seconds data)
+{
+    m_length = data;
+}
+
 // *******************
 // ** song_database **
 // *******************
 
 using lock_type = std::lock_guard<std::mutex>;
+
+song_database song_database::instance;
 
 const song_information& song_database::song_info(const std::string& path)
 {
@@ -113,4 +147,10 @@ const song_information& song_database::song_info(const std::string& path)
 		).first;
 	}
 	return iter->second;
+}
+
+void song_database::set_song_info(std::string path, song_information data)
+{
+    lock_type _(m_lock);
+    m_db[std::move(path)] = std::move(data);
 }
