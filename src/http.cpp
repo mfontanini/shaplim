@@ -23,16 +23,20 @@ using boost::asio::ip::tcp;
 // http_buffer
 
 http_buffer::http_buffer()
-: m_finished(false)
+: m_current_size(), m_max_size(10 * 1024 * 1024), m_finished(false)
 {
     
 }
 
 void http_buffer::put(chunk_type chunk) 
 {
-    std::lock_guard<std::mutex> _(m_mutex);
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_current_size += chunk.size();
     m_chunks.emplace_back(std::move(chunk));
-    m_cond.notify_one();
+    m_empty_cond.notify_one();
+    while(m_current_size >= m_max_size && !m_finished) {
+        m_full_cond.wait(lock);
+    }
 }
 
 auto http_buffer::get() -> chunk_type
@@ -40,12 +44,14 @@ auto http_buffer::get() -> chunk_type
     std::unique_lock<std::mutex> lock(m_mutex);
     if(m_chunks.empty()) {
         if(!m_finished)
-            m_cond.wait(lock);
+            m_empty_cond.wait(lock);
     }
     chunk_type output;
     if(!m_chunks.empty()) {
         output = std::move(m_chunks.front());
         m_chunks.pop_front();
+        m_current_size -= output.size();
+        m_full_cond.notify_one();
     }
     return output;
 }
@@ -54,7 +60,13 @@ void http_buffer::finish_buffer()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     m_finished = true;
-    m_cond.notify_all();
+    m_empty_cond.notify_all();
+}
+
+void http_buffer::max_size(size_t value)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_max_size = value;
 }
 
 void http_buffer::reset()
@@ -72,7 +84,8 @@ bool http_buffer::is_finished() const
 // http_requester
 
 http_requester::http_requester(boost::asio::io_service& service)
-: m_socket(service), m_pending_chunk_length()
+: m_socket(service), m_pending_chunk_length(), m_should_stop(false),
+m_running(false)
 {
     
 }
@@ -111,6 +124,17 @@ size_t http_requester::find_content_length(streambuf_iterator start,
         return std::stoll(std::string(what[1].first, what[1].second));
     else
         return {};
+}
+
+void http_requester::stop()
+{
+    m_should_stop = true;
+    std::unique_lock<std::mutex> lock(m_running_mutex);
+    if(m_running) {
+        close();
+        m_chunks.finish_buffer();
+        m_condition.wait(lock);
+    }
 }
 
 std::tuple<std::string, std::string> http_requester::split_url(const std::string& url)
@@ -166,6 +190,9 @@ size_t http_requester::content_length() const
 
 void http_requester::read_content(size_t size)
 {
+    if(check_stop()) {
+        return;
+    }
     // first time, maybe
     if(m_buffer.size() > 0) {
         if(m_buffer.size() > size) {
@@ -200,6 +227,8 @@ void http_requester::read_content(size_t size)
                 }
             }
             else {
+                if(check_stop())
+                    return;
                 m_chunks.finish_buffer();
                 close();
             }
@@ -268,6 +297,19 @@ void http_requester::read_chunk(size_t size)
     );
 }
 
+bool http_requester::check_stop()
+{
+    if(m_should_stop) {
+        std::lock_guard<std::mutex> _(m_running_mutex);
+        if(m_running) {
+            m_running = false;
+            m_condition.notify_one();
+        }
+        return true;
+    }
+    return false;
+}
+
 void http_requester::read_more_data()
 {
     boost::asio::async_read(
@@ -276,30 +318,40 @@ void http_requester::read_more_data()
         // Completion functor
         [&](boost::system::error_code ec, std::size_t length) -> size_t
         {
-            if(m_pending_chunk_length > 0) {
-                return (m_buffer.size() >= m_pending_chunk_length) ? 0 : 1;
+            if(check_stop())
+                return 0;
+            if(!ec) {
+                if(m_pending_chunk_length > 0) {
+                    return (m_buffer.size() >= m_pending_chunk_length) ? 0 : 1;
+                }
+                else {
+                    auto data = m_buffer.data();
+                    const auto end = boost::asio::buffers_end(data);
+                    auto iter = std::find(
+                        boost::asio::buffers_begin(data),
+                        end,
+                        '\r'
+                    );
+                    return (iter != end && std::distance(iter, end) >= 2) ? 0 : 1;
+                }
             }
             else {
-                auto data = m_buffer.data();
-                const auto end = boost::asio::buffers_end(data);
-                auto iter = std::find(
-                    boost::asio::buffers_begin(data),
-                    end,
-                    '\r'
-                );
-                return (iter != end && std::distance(iter, end) >= 2) ? 0 : 1;
+                return 0;
             }
         },
         [&](boost::system::error_code ec, std::size_t length)
         {
-            
-            if(m_pending_chunk_length > 0)
-                read_chunk(m_pending_chunk_length);
-            auto data = m_buffer.data();
-            process_chunked(
-                boost::asio::buffers_begin(data),
-                boost::asio::buffers_end(data)
-            );
+            if(check_stop())
+                return;
+            if(!ec) {
+                if(m_pending_chunk_length > 0)
+                    read_chunk(m_pending_chunk_length);
+                auto data = m_buffer.data();
+                process_chunked(
+                    boost::asio::buffers_begin(data),
+                    boost::asio::buffers_end(data)
+                );
+            }
         }
     );
 }
@@ -370,6 +422,7 @@ void http_requester::read_headers()
             }
             else {
                 std::cout << "Error\n";
+                check_stop();
                 close();
             }
         }

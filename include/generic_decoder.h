@@ -43,8 +43,6 @@ public:
 		m_on_rate_change = std::move(callback);
 	}
 private:
-	std::shared_ptr<AVFrame> m_frame;
-	AVPacket m_packet;
 	std::function<void(long long)> m_on_rate_change;
 	std::atomic<bool> m_running;
 };

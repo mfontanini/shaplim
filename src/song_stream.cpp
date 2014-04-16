@@ -72,12 +72,11 @@ song_stream make_file_song_stream(const std::string& path)
 	);
 }
 
-song_stream make_youtube_song_stream(const std::string& id, 
-	boost::asio::io_service& service)
+song_stream make_youtube_song_stream(const std::string& id)
 {
 	return song_stream(
 		std::unique_ptr<song_stream_impl>(
-			new youtube_song_stream_impl(id, service)
+			new youtube_song_stream_impl(id)
 		)
 	);
 }

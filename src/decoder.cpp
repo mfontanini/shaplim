@@ -22,6 +22,12 @@
 
 // TODO: create a base class for decoders.
 
+decoder::decoder()
+: m_current_song_type(song_type::none)
+{
+
+}
+
 void decoder::decode(song_stream stream, types::decode_buffer_type& buffer, song_type type)
 {
 	m_current_song_type = type;
@@ -35,7 +41,7 @@ void decoder::stop_decode()
 {
 	if(m_current_song_type == song_type::mp3)
 		m_mp3_decoder.stop_decode();
-	else
+	else if(m_current_song_type == song_type::generic)
 		m_generic_decoder.stop_decode();
 }
 
@@ -43,6 +49,8 @@ float decoder::percent_so_far()
 {
 	if(m_current_song_type == song_type::mp3)
 		return m_mp3_decoder.percent_so_far();
-	else
+	else if(m_current_song_type == song_type::generic)
 		return m_generic_decoder.percent_so_far();
+	else
+		return 0;
 }

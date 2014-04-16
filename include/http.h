@@ -57,13 +57,15 @@ public:
     void finish_buffer();
     bool is_finished() const;
     bool has_chunks() const;
+    void max_size(size_t value);
 
     void reset();
 private:
     // we store chunks in a deque
     std::deque<chunk_type> m_chunks;
     mutable std::mutex m_mutex;
-    std::condition_variable m_cond;
+    std::condition_variable m_empty_cond, m_full_cond;
+    size_t m_current_size, m_max_size;
     bool m_finished;
 };
 
@@ -79,6 +81,7 @@ public:
     }
 
     size_t content_length() const;
+    void stop();
 private:
     enum class transfer_encoding {
         none,
@@ -99,12 +102,17 @@ private:
     void read_more_data();
     void read_chunk(size_t size);
     void read_content(size_t size);
+    bool check_stop();
 
     boost::asio::ip::tcp::socket m_socket;
     boost::asio::streambuf m_buffer;
     std::string m_send_buffer;
     http_buffer m_chunks;
     size_t m_pending_chunk_length, m_content_length;
+    std::atomic<bool> m_should_stop;
+    std::mutex m_running_mutex;
+    std::condition_variable m_condition;
+    bool m_running;
 };
 
 #endif // SHAPLIM_HTTP_H

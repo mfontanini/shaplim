@@ -115,7 +115,7 @@ void core::decode_loop()
 			}
 			else if(song_to_play.schema() == song::schema_type::youtube_stream) {
 				std::cout << "youtube://" << song_to_play.path() << std::endl;
-				stream = make_youtube_song_stream(song_to_play.path(), m_io_service);
+				stream = make_youtube_song_stream(song_to_play.path());
 			}
 			else {
 				std::cout << "Unknown schema for " << song_to_play.path() << std::endl;

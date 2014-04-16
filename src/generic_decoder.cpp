@@ -47,7 +47,6 @@ int64_t seek_function(void* opaque, int64_t offset, int whence)
     if(whence == SEEK_END)
         return -1;
     if(stream.bytes_left()) {
-        std::cout << "WHence: " << whence << " - Offset: " << offset << " -> " << stream.current_offset() << std::endl;
         stream.seek(offset);
         return 1;
     }
@@ -56,12 +55,9 @@ int64_t seek_function(void* opaque, int64_t offset, int whence)
 }
 
 generic_decoder::generic_decoder()
-: m_frame(avcodec_alloc_frame(), &av_free)
 {
 	static std::once_flag flag;
 	std::call_once(flag, av_register_all);
-
-	av_init_packet(&m_packet);
 }
 
 void generic_decoder::decode(song_stream stream, types::decode_buffer_type &buffer)
@@ -113,24 +109,27 @@ void generic_decoder::decode(song_stream stream, types::decode_buffer_type &buff
     
     m_on_rate_change(ctx->sample_rate);
 
-    while(m_running && av_read_frame(av_format.get(), &m_packet) >= 0)
+    AVPacket packet;
+    std::shared_ptr<AVFrame> frame{avcodec_alloc_frame(), &av_free};
+    av_init_packet(&packet);
+    while(m_running && av_read_frame(av_format.get(), &packet) >= 0)
     {
-        if(m_packet.stream_index == stream_id) {
+        if(packet.stream_index == stream_id) {
             int frame_decoded = 0;
-            avcodec_decode_audio4(ctx, m_frame.get(), &frame_decoded, &m_packet);
+            avcodec_decode_audio4(ctx, frame.get(), &frame_decoded, &packet);
             if(frame_decoded){
                 if(ctx->sample_fmt == AV_SAMPLE_FMT_S16) {
                     buffer.put(
-                        (const uint16_t*)m_frame->extended_data[0], 
-                        (const uint16_t*)m_frame->extended_data[0] + m_frame->nb_samples * ctx->channels
+                        (const uint16_t*)frame->extended_data[0], 
+                        (const uint16_t*)frame->extended_data[0] + frame->nb_samples * ctx->channels
                     );
                 }
                 else {
                     throw std::runtime_error("Needs resampling");
                 }
             }
-
         }
+        av_free_packet(&packet);
     }
 }
 

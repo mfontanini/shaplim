@@ -35,11 +35,9 @@ include/music_file.h:
 include/event_manager.h:
 
 include/song_database.h:
-src/decoder.o: src/decoder.cpp include/decoder.h include/mp3_decoder.h \
- include/types.h include/ring_buffer.h include/song_stream.h \
- include/generic_decoder.h
-
-include/decoder.h:
+src/decoder.o: src/decoder.cpp include/mp3_decoder.h include/types.h \
+ include/ring_buffer.h include/song_stream.h include/generic_decoder.h \
+ include/decoder.h include/mp3_decoder.h include/generic_decoder.h
 
 include/mp3_decoder.h:
 
@@ -48,6 +46,12 @@ include/types.h:
 include/ring_buffer.h:
 
 include/song_stream.h:
+
+include/generic_decoder.h:
+
+include/decoder.h:
+
+include/mp3_decoder.h:
 
 include/generic_decoder.h:
 src/directory.o: src/directory.cpp include/directory.h \
@@ -174,8 +178,10 @@ include/song_stream_impl.h:
 include/song_stream.h:
 
 include/http.h:
-src/song_stream_impl.o: src/song_stream_impl.cpp \
+src/song_stream_impl.o: src/song_stream_impl.cpp include/song_database.h \
  include/song_stream_impl.h include/song_stream.h include/http.h
+
+include/song_database.h:
 
 include/song_stream_impl.h:
 

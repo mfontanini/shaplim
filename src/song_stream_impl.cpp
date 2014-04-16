@@ -170,9 +170,16 @@ std::tuple<std::string, size_t> retrieve_song_info(const std::string& data)
 }
 
 youtube_song_stream_impl::youtube_song_stream_impl(
-	const std::string& identifier, boost::asio::io_service& service)
-: m_requester(service), m_current_chunk(0), m_offset(0)
+	const std::string& identifier)
+: m_service_work(m_service), m_requester(m_service), m_iterator(m_chunk.end()), 
+m_offset(0)
 {
+    m_service_thread = std::thread(
+        [&]() {
+            m_service.run();
+        }
+    );
+
 	{
 		http_request_builder request(
 	        "/watch?v=" + identifier, 
@@ -209,17 +216,18 @@ youtube_song_stream_impl::youtube_song_stream_impl(
 	}
 }
 
+youtube_song_stream_impl::~youtube_song_stream_impl()
+{
+	m_requester.stop();
+    m_service.stop();
+    m_service_thread.join();
+}
+
 void youtube_song_stream_impl::ensure_read_chunk()
 {
-	if(m_current_chunk == m_chunks.size() || m_iterator == current_chunk().end()) {
-		auto chunk = m_requester.buffer().get();
-		if(!chunk.empty()) {
-			if(m_current_chunk != m_chunks.size()) {
-				m_current_chunk++;
-			}
-			m_chunks.push_back(std::move(chunk));
-			m_iterator = current_chunk().begin();
-		}
+	if(m_iterator == m_chunk.end()) {
+		m_chunk = m_requester.buffer().get();
+		m_iterator = m_chunk.begin();
 	}
 }
 
@@ -232,54 +240,30 @@ const char* youtube_song_stream_impl::buffer_ptr()
 size_t youtube_song_stream_impl::available()
 {
 	ensure_read_chunk();
-	return std::distance(m_iterator, current_chunk().end());
+	return std::distance(m_iterator, m_chunk.end());
 }
 
 void youtube_song_stream_impl::seek(size_t pos)
 {
-	std::cin.get();
 	if(pos >= m_offset) {
 		advance(pos - m_offset);
 	}
 	else {
-		size_t current = 0, chunk_index = 0;
-		for(const auto& chunk : m_chunks) {
-			if(current + chunk.size() > pos) {
-				m_offset = pos;
-				m_current_chunk = chunk_index;
-				m_iterator = current_chunk().begin() + (pos - current);
-				break;
-			}
-			current += chunk.size();
-			++chunk_index;
-		}
+		throw std::runtime_error("Stream cannot be rewinded");
 	}
 }
 
 void youtube_song_stream_impl::advance(size_t n)
 {
 	ensure_read_chunk();
-	size_t distance = std::distance(m_iterator, current_chunk().end());
-	while(n > distance && m_current_chunk != m_chunks.size() && !current_chunk().empty()) {
+	size_t distance = std::distance(m_iterator, m_chunk.end());
+	while(n > distance && !m_chunk.empty()) {
 		n -= distance;
 		m_offset += distance;
-		if(m_current_chunk == m_chunks.size() - 1) {
-			m_iterator = current_chunk().end();
-			ensure_read_chunk();
-			// Didn't advance, we're done
-			if(m_iterator == current_chunk().end())
-				break;
-		}
-		else {
-			++m_current_chunk;
-			m_iterator = current_chunk().begin();
-		}
-		if(m_current_chunk != m_chunks.size())
-			distance = std::distance(m_iterator, current_chunk().end());
+		ensure_read_chunk();
+		distance = std::distance(m_iterator, m_chunk.end());
 	}
-	if(!bytes_left() || current_chunk().empty())
-		m_iterator = current_chunk().end();
-	else {
+	if(m_iterator != m_chunk.end()) {
 		m_iterator += n;
 		m_offset += n;
 	}
@@ -294,20 +278,10 @@ size_t youtube_song_stream_impl::size()
 bool youtube_song_stream_impl::bytes_left()
 {
 	ensure_read_chunk();
-	if(!m_requester.buffer().is_finished())
-		return true;
-	else if(m_current_chunk == m_chunks.size())
-		return false;
-	else
-		return m_iterator != current_chunk().end();
+	return !m_requester.buffer().is_finished() || m_iterator != m_chunk.end();
 }
 
 size_t youtube_song_stream_impl::current_offset()
 {
 	return m_offset;
-}
-
-http_buffer::chunk_type& youtube_song_stream_impl::current_chunk()
-{
-	return m_chunks[m_current_chunk];
 }

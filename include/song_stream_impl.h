@@ -19,6 +19,7 @@
 #define SHAPLIM_SONG_STREAM_IMPL_H
 
 #include <boost/iostreams/device/mapped_file.hpp>
+#include <thread>
 #include "song_stream.h"
 #include "http.h"
 
@@ -39,8 +40,9 @@ private:
 
 class youtube_song_stream_impl : public song_stream_impl {
 public:
-	youtube_song_stream_impl(const std::string& identifier, 
-		boost::asio::io_service& service);
+	youtube_song_stream_impl(const std::string& identifier);
+	~youtube_song_stream_impl();
+
 	const char* buffer_ptr();
 	size_t available();
 	void advance(size_t n);
@@ -50,12 +52,13 @@ public:
 	size_t current_offset();
 private:
 	void ensure_read_chunk();
-	http_buffer::chunk_type& current_chunk();
 
+	boost::asio::io_service m_service;
+	boost::asio::io_service::work m_service_work;
 	http_requester m_requester;
-	size_t m_current_chunk;
+	http_buffer::chunk_type m_chunk;
 	http_buffer::chunk_type::iterator m_iterator;
-	std::vector<http_buffer::chunk_type> m_chunks;
+	std::thread m_service_thread;
 	size_t m_offset;
 };
 

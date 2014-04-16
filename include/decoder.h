@@ -26,17 +26,18 @@
 class decoder {
 public:
 	enum class song_type {
+		none,
 		mp3,
 		generic
 	};
 
+	decoder();
+
 	template<typename Functor>
 	void on_sample_rate_change(Functor callback) 
 	{
-		if(m_current_song_type == song_type::mp3)
-			m_mp3_decoder.on_sample_rate_change(callback);
-		else
-			m_generic_decoder.on_sample_rate_change(callback);
+		m_mp3_decoder.on_sample_rate_change(callback);
+		m_generic_decoder.on_sample_rate_change(callback);
 	}
 
 	void decode(song_stream stream, types::decode_buffer_type& buffer, song_type type);

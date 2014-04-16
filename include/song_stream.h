@@ -57,6 +57,6 @@ private:
 };
 
 song_stream make_file_song_stream(const std::string& path);
-song_stream make_youtube_song_stream(const std::string& id, boost::asio::io_service& service);
+song_stream make_youtube_song_stream(const std::string& id);
 
 #endif // SHAPLIM_SONG_STREAM_H
