@@ -20,19 +20,20 @@
 
 
 playback_manager::playback_manager(types::decode_buffer_type &buffer)
-: m_handle(nullptr, &Pa_CloseStream), m_buffer(buffer), m_current_rate(44100)
+: m_handle(nullptr, &Pa_CloseStream), m_buffer(buffer), m_current_rate(44100),
+m_playing(false)
 {
     m_params.device = Pa_GetDefaultOutputDevice();
     if (m_params.device == paNoDevice)
         throw std::runtime_error("Could not open audio device.");
     m_params.channelCount = 2;       /* stereo output */
     m_params.sampleFormat = paInt16; /* 16 bit signed integer output */
-    m_params.suggestedLatency = Pa_GetDeviceInfo(m_params.device)->defaultLowOutputLatency;
+    m_params.suggestedLatency = Pa_GetDeviceInfo(m_params.device)->defaultHighOutputLatency;
     m_params.hostApiSpecificStreamInfo = NULL;
 
     PaStream *stream;
 
-    if(Pa_OpenStream(&stream, NULL, &m_params, 44100, 256, paNoFlag, proxy_callback, this) != paNoError)
+    if(Pa_OpenStream(&stream, NULL, &m_params, 44100, paFramesPerBufferUnspecified, paNoFlag, proxy_callback, this) != paNoError)
         throw std::runtime_error("Could not open PortAudio stream.");
    	m_handle.reset(stream);
     play();
@@ -41,6 +42,7 @@ playback_manager::playback_manager(types::decode_buffer_type &buffer)
 void playback_manager::set_sample_rate(long rate)
 {
     if(rate != m_current_rate) {
+        m_playing = false;
         m_current_rate = rate;
         if(is_stream_active()) {
             Pa_StopStream(m_handle.get());
@@ -55,8 +57,9 @@ void playback_manager::set_sample_rate(long rate)
 
 bool playback_manager::play()
 {
-	if(!is_stream_active()) {
+	if(!m_playing) {
 		Pa_StartStream(m_handle.get());
+        m_playing = true;
         return true;
     }
     return false;
@@ -64,8 +67,9 @@ bool playback_manager::play()
 
 bool playback_manager::pause()
 {
-	if(is_stream_active()) {
-        Pa_StopStream(m_handle.get());
+	if(m_playing) {
+        //Pa_StopStream(m_handle.get());
+        m_playing = false;
         return true;
     }
     return false;
@@ -78,9 +82,19 @@ bool playback_manager::is_stream_active() const
 
 int playback_manager::callback(void *output_buffer, unsigned long frames_per_buffer)
 {
-	m_buffer.get(
-		static_cast<short *>(output_buffer), 
-		frames_per_buffer * 2
-	);
+    auto buffer_ptr = static_cast<short *>(output_buffer);
+    if(m_playing) {
+    	m_buffer.get(
+    		buffer_ptr, 
+    		frames_per_buffer * 2
+    	);
+    }
+    else {
+        std::fill(
+            buffer_ptr,
+            buffer_ptr + frames_per_buffer * 2,
+            0
+        );
+    }
 	return paContinue;
 }

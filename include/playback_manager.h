@@ -19,6 +19,7 @@
 #define SHAPLIM_PLAYBACK_MANAGER_H
 
 #include <memory>
+#include <atomic>
 #include <portaudio.h>
 #include "types.h"
 
@@ -54,6 +55,7 @@ private:
     PaStreamParameters m_params;
     types::decode_buffer_type &m_buffer;
     unsigned m_current_rate;
+    std::atomic<bool> m_playing;
 };
 
 #endif // SHAPLIM_PLAYBACK_MANAGER_H

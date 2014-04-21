@@ -17,6 +17,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/regex.hpp>
+#include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include "song_database.h"
@@ -72,7 +73,29 @@ void file_song_stream_impl::seek(size_t pos)
 // **********************
 
 std::string retrieve_urls(const std::string& payload) {
-    static boost::regex regex("\"url_encoded_fmt_stream_map\"\\s*:\\s*\"([^\"]+)\"");
+    static boost::regex regex("url_encoded_fmt_stream_map=([^&]+)");
+    boost::match_results<std::string::const_iterator> what; 
+    if(regex_search(payload.begin(), payload.end(), what, regex)) {
+        return std::string(what[1].first, what[1].second);
+    }
+    else {
+        return {};
+    }
+}
+
+std::string retrieve_signature(const std::string& payload) {
+    static boost::regex regex("s=([^&]+)&");
+    boost::match_results<std::string::const_iterator> what; 
+    if(regex_search(payload.begin(), payload.end(), what, regex)) {
+        return std::string(what[1].first, what[1].second);
+    }
+    else {
+        return {};
+    }
+}
+
+std::string extract_url(const std::string& payload) {
+    static boost::regex regex("url=([^&]+)");
     boost::match_results<std::string::const_iterator> what; 
     if(regex_search(payload.begin(), payload.end(), what, regex)) {
         return std::string(what[1].first, what[1].second);
@@ -101,55 +124,31 @@ std::string url_decode(const std::string& input)
     return output.str();
 }
 
-std::string remove_parameter(std::string input, const std::string& param) 
-{
-    auto index = input.rfind(param);
-    if(index != std::string::npos) {
-        auto end = input.find('&', index + 1);
-        if(end == std::string::npos)
-            input.erase(input.begin() + index, input.end());
-        else {
-            input.erase(input.begin() + index, input.begin() + end);
-        }
-    }
-    return input;
-}
-
-std::string remove_itag(std::string input) {
-	auto output = remove_parameter(input, ",itag=");
-	if(output.size() == input.size())
-		output = remove_parameter(input, "&itag=");
-	return output;
-}
-
-std::string normalize_url(const std::string& input) 
-{
-    static boost::regex regex(",([^=&,]+)=");
-    return boost::regex_replace(input, regex, "&$1=", boost::match_default);
-}
-
 std::string find_video_url(std::string input) 
 {
     using boost::algorithm::find_first;
-    using boost::algorithm::split_regex;
+    using boost::algorithm::split;
     using boost::algorithm::is_any_of;
     
-    input = url_decode(url_decode(input));
+    input = url_decode(retrieve_urls(input));
     boost::algorithm::replace_all(input, "\\u0026", "&");
     
     std::vector<std::string> urls;
-    split_regex(urls, input, boost::regex("(?:&|,)url="));
+    split(urls, input, is_any_of(","));
     std::string best_url;
-    for(const auto& url : urls) {
-    	if(find_first(url, "quality=medium") && !find_first(url, "type=video/x-flv")) {
-    		best_url = url;
-    		if(find_first(url, "type=video/mp4"))
+    for(const auto& data : urls) {
+    	if(find_first(data, "quality=medium") && !find_first(data, "type=video%2Fx-flv")) {
+    		best_url = extract_url(data);
+            best_url = url_decode(url_decode(best_url));
+            auto signature = retrieve_signature(data);
+            if(!signature.empty()) {
+                best_url += "&signature=" + signature;
+            }
+    		if(find_first(data, "type=video%2Fmp4"))
     			break;
     	}
     }
-	auto this_url = remove_itag(normalize_url(best_url));
-	this_url = remove_parameter(this_url, ";+codecs=");
-    return this_url;
+    return best_url;
 }
 
 std::tuple<std::string, size_t> retrieve_song_info(const std::string& data)
@@ -182,7 +181,7 @@ m_offset(0)
 
 	{
 		http_request_builder request(
-	        "/watch?v=" + identifier, 
+	        "/get_video_info?asv=3&el=detailpage&hl=en_US&video_id=" + identifier, 
 	        "www.youtube.com"
 	    );
 	    m_requester.request(request.build(), "www.youtube.com");
@@ -196,6 +195,9 @@ m_offset(0)
         chunk = buffer.get();
     }
     buffer.reset();
+    if(payload.find("use_cipher_signature=True") != std::string::npos) {
+        throw std::runtime_error("Video signature is ciphered");
+    }
 	auto data = retrieve_song_info(payload);
 
 	song_information info;
@@ -205,7 +207,7 @@ m_offset(0)
 		"youtube://" + identifier, 
 		std::move(info)
 	);
-    auto url = find_video_url(retrieve_urls(payload));
+    auto url = find_video_url(payload);
     auto splitted = http_requester::split_url(url);
     {
 	    http_request_builder request(

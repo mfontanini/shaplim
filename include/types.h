@@ -21,7 +21,8 @@
 #include "ring_buffer.h"
 
 namespace types {
-using decode_buffer_type = ring_buffer<short, 8192>;
+	//using decode_buffer_type = ring_buffer<short, 8192>;
+	using decode_buffer_type = lock_free_ring_buffer<short, 8192>;
 }
 
 #endif // SHAPLIM_TYPES_H
