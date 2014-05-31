@@ -35,17 +35,8 @@
 
 void init_audio() 
 {
-	#ifndef WIN32
-        int err(0);
-        dup2(err, 2);
-        close(2);
-        if(Pa_Initialize() != paNoError)
-            throw std::runtime_error("Could not initialize PortAudio.");
-        dup2(2, err);
-    #else
-        if(Pa_Initialize() != paNoError)
-            throw std::runtime_error("Could not initialize PortAudio.");
-    #endif
+    if(Pa_Initialize() != paNoError)
+        throw std::runtime_error("Could not initialize PortAudio.");
 }
 
 bool read_configuration(const std::string& file_path, std::vector<std::string>& dirs) 
@@ -80,16 +71,24 @@ std::vector<std::string> load_shared_dirs()
     throw std::runtime_error("Configuration file not found");
 }
 
+std::function<void()> sig_handler;
+
 int main() 
 {
+    bool audio_initialized = false;
     try {
+        init_audio();
+        audio_initialized = true;
         std::vector<std::string> shared_dirs;
         shared_dirs = load_shared_dirs();
-    	init_audio();
     	core c(shared_dirs);
+        sig_handler = [&]() { c.stop(); };
+        signal(SIGINT, [](int) { sig_handler(); });
     	c.run();
     }
     catch(std::runtime_error& ex) {
         std::cout << "[-] Error: " << ex.what() << std::endl;
     }
+    if(audio_initialized)
+        Pa_Terminate();
 }

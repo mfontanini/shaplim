@@ -48,7 +48,7 @@ void playback_manager::set_sample_rate(long rate)
             Pa_StopStream(m_handle.get());
         }
         PaStream *stream;
-        if(Pa_OpenStream(&stream, NULL, &m_params, rate, 256, paNoFlag, proxy_callback, this) != paNoError)
+        if(Pa_OpenStream(&stream, NULL, &m_params, rate, paFramesPerBufferUnspecified, paNoFlag, proxy_callback, this) != paNoError)
             throw std::runtime_error("Could not open PortAudio stream.");
         m_handle.reset(stream);
         play();
@@ -68,11 +68,15 @@ bool playback_manager::play()
 bool playback_manager::pause()
 {
 	if(m_playing) {
-        //Pa_StopStream(m_handle.get());
         m_playing = false;
         return true;
     }
     return false;
+}
+
+void playback_manager::stop()
+{
+    Pa_StopStream(m_handle.get());
 }
 
 bool playback_manager::is_stream_active() const

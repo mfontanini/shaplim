@@ -28,6 +28,12 @@ song_stream::song_stream(std::unique_ptr<song_stream_impl> impl)
 
 }
 
+song_stream::~song_stream()
+{
+	if(m_impl)
+		m_impl->stop();
+}
+
 const char* song_stream::buffer_ptr()
 {
 	return m_impl->buffer_ptr();

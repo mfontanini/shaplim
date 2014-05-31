@@ -39,11 +39,15 @@ public:
 	virtual bool bytes_left() = 0;
 	virtual size_t current_offset() = 0;
 	virtual void seek(size_t pos) = 0;
+	virtual void stop() { }
 };
 
 class song_stream {
 public:
 	song_stream(std::unique_ptr<song_stream_impl> impl = nullptr);
+	song_stream(song_stream&&) = default;
+	song_stream& operator=(song_stream&&) = default;
+	~song_stream();
 
 	const char* buffer_ptr();
 	size_t available();

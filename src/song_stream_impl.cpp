@@ -175,7 +175,13 @@ m_offset(0)
 {
     m_service_thread = std::thread(
         [&]() {
-            m_service.run();
+            try {
+                m_service.run();
+            }
+            catch(std::exception& ex) {
+                std::cout << "Error on youtube song: " << ex.what() << std::endl;
+                throw;
+            }
         }
     );
 
@@ -196,6 +202,7 @@ m_offset(0)
     }
     buffer.reset();
     if(payload.find("use_cipher_signature=True") != std::string::npos) {
+        stop();
         throw std::runtime_error("Video signature is ciphered");
     }
 	auto data = retrieve_song_info(payload);
@@ -208,6 +215,10 @@ m_offset(0)
 		std::move(info)
 	);
     auto url = find_video_url(payload);
+    if(url.empty()) {
+        stop();
+        throw std::runtime_error("Could not find youtube URL");
+    }
     auto splitted = http_requester::split_url(url);
     {
 	    http_request_builder request(
@@ -220,9 +231,15 @@ m_offset(0)
 
 youtube_song_stream_impl::~youtube_song_stream_impl()
 {
-	m_requester.stop();
+	stop();
+}
+
+void youtube_song_stream_impl::stop()
+{
     m_service.stop();
-    m_service_thread.join();
+    m_requester.stop();
+    if(m_service_thread.joinable())
+        m_service_thread.join();
 }
 
 void youtube_song_stream_impl::ensure_read_chunk()

@@ -61,6 +61,7 @@ void http_buffer::finish_buffer()
     std::unique_lock<std::mutex> lock(m_mutex);
     m_finished = true;
     m_empty_cond.notify_all();
+    m_full_cond.notify_all();
 }
 
 void http_buffer::max_size(size_t value)
@@ -137,6 +138,19 @@ void http_requester::stop()
     }
 }
 
+bool http_requester::check_stop()
+{
+    if(m_should_stop) {
+        std::lock_guard<std::mutex> _(m_running_mutex);
+        if(m_running) {
+            m_running = false;
+            m_condition.notify_one();
+        }
+        return true;
+    }
+    return false;
+}
+
 std::tuple<std::string, std::string> http_requester::split_url(const std::string& url)
 {
     static boost::regex regex("http://([^/]+)(.*)");
@@ -171,6 +185,7 @@ void http_requester::request(std::string data, const std::string& server,
         throw boost::system::system_error(error);
     }
     m_send_buffer = std::move(data);
+    m_running = true;
     boost::asio::async_write(
 		m_socket, 
 		boost::asio::buffer(m_send_buffer), 
@@ -210,6 +225,9 @@ void http_requester::read_content(size_t size)
     m_socket.async_read_some(
         boost::asio::buffer(this_buffer),
         [&, size](boost::system::error_code ec, std::size_t length) {
+            if(check_stop()) {
+                return;
+            }
             if(!ec && length <= size) {
                 m_buffer.commit(length);
                 auto data = m_buffer.data();
@@ -227,8 +245,6 @@ void http_requester::read_content(size_t size)
                 }
             }
             else {
-                if(check_stop())
-                    return;
                 m_chunks.finish_buffer();
                 close();
             }
@@ -295,19 +311,6 @@ void http_requester::read_chunk(size_t size)
             end
         )
     );
-}
-
-bool http_requester::check_stop()
-{
-    if(m_should_stop) {
-        std::lock_guard<std::mutex> _(m_running_mutex);
-        if(m_running) {
-            m_running = false;
-            m_condition.notify_one();
-        }
-        return true;
-    }
-    return false;
 }
 
 void http_requester::read_more_data()

@@ -50,6 +50,7 @@ public:
 	size_t size();
 	bool bytes_left();
 	size_t current_offset();
+	void stop();
 private:
 	void ensure_read_chunk();
 

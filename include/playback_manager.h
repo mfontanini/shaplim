@@ -30,6 +30,7 @@ public:
 	void set_sample_rate(long rate);
 	bool play();
 	bool pause();
+	void stop();
 	bool is_stream_active() const;
 private:
 	using handle_type = std::unique_ptr<PaStream, decltype(&Pa_CloseStream)>;

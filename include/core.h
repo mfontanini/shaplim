@@ -23,6 +23,7 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <atomic>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -42,6 +43,7 @@ public:
 	core(const shared_dirs_list& shared_dirs = shared_dirs_list());
 
 	void run();
+	void stop();
 private:
 	using command_type = std::function<Json::Value(core*, const Json::Value&)>;
 	using time_point = event_manager::time_point;
@@ -97,6 +99,7 @@ private:
 	event_manager m_event_manager;
 	std::mutex m_playlist_mutex;
 	std::condition_variable m_playlist_cond;
+	std::atomic<bool> m_running;
 };
 
 #endif // SHAPLIM_CORE_H

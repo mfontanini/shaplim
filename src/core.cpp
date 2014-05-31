@@ -55,7 +55,7 @@ public:
 core::core(const shared_dirs_list& shared_dirs)
 : m_server(m_io_service, 1337), m_discovery_server(m_io_service, 21283), 
 m_playback(m_buffer), m_sharing_manager(shared_dirs), 
-m_next_action(playlist_actions::none)
+m_next_action(playlist_actions::none), m_running(false)
 {
 	m_decoder.on_sample_rate_change(
 		std::bind(&playback_manager::set_sample_rate, &m_playback, std::placeholders::_1)
@@ -78,13 +78,32 @@ m_next_action(playlist_actions::none)
 
 void core::run()
 {
+	m_running = true;
 	m_decode_thread = std::thread(&core::decode_loop, this);
 	m_io_service.run();
 }
 
+void core::stop()
+{
+	if(m_running) {
+		m_running = false;
+		m_playback.stop();
+		m_buffer.clear();
+		m_io_service.stop();
+
+		{
+			std::lock_guard<std::mutex> _(m_playlist_mutex);
+			m_playlist_cond.notify_one();
+		}
+
+		m_decoder.stop_decode();
+		m_decode_thread.join();
+	}
+}
+
 void core::decode_loop()
 {
-	while(true) {
+	while(m_running) {
 		song_stream stream;
 		try {
 			song song_to_play;
@@ -95,10 +114,12 @@ void core::decode_loop()
 				execute_next_action();
 				if(!m_playlist.has_current())
 					m_event_manager.add_play_song_event(-1);
-				while(!m_playlist.has_current()) {
+				while(!m_playlist.has_current() && m_running) {
 					m_playlist_cond.wait(lock);
 					execute_next_action();
 				}
+				if(!m_running)
+					break;
 				song_to_play = m_playlist.current();
 				current_index = m_playlist.current_index();
 				m_next_action = playlist_actions::next;
